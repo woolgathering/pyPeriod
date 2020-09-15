@@ -40,13 +40,16 @@ periods, powers, bases = p.m_best(num=10)
 
 # find periodicities using the M-best gamma algorithm
 periods, powers, bases = p.m_best_gamma(num=10)
+
+# find periodicities using the best correlation algorithm
+periods, powers, bases = p.best_correlation(num=10)
 ```
 
 ### Algorithms
 - Small-to-large
 - M-best
 - M-best gamma
-- Best correlation (not yet implemented)
+- Best correlation
 - Best frequency (not yet implemented)
 
 ### Documentation
