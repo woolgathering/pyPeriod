@@ -33,8 +33,17 @@ def get_primes(max=1000000):
   return np.insert(primes[isprime],0,2)
 
 class Periods:
+  @classmethod
+  def inverse(powers, bases):
+    """
+    A quasi-inverse method to rebuild the original signal. Not theoretically
+    sound, use at your own risk.
+    """
+    pass
+
   def __init__(self, data):
-    self.data = np.array(data)
+    super(Periods, self).__init__()
+    self._data = data
 
   def project(self, data, p=2):
     if p==1:
@@ -193,4 +202,21 @@ class Periods:
 
 
   def best_correlation(self):
+  def best_frequency(self, num=5):
     pass
+
+
+  ######################
+  # Properties ########
+  ######################
+
+  def data():
+      doc = "The data property."
+      def fget(self):
+          return self._data
+      def fset(self, value):
+          self._data = value
+      def fdel(self):
+          del self._data
+      return locals()
+  data = property(**data())
