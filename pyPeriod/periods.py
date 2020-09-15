@@ -201,7 +201,41 @@ class Periods:
     return self.__periodic_norm(x) / math.sqrt(p)
 
 
-  def best_correlation(self):
+  def best_correlation(self, num=5, max_length=None, ratio=0.01):
+    if max_length is None:
+      max_length = math.floor(len(self._data)/3)
+    periods = np.zeros(num, dtype=np.uint32)
+    norms = np.zeros(num)
+    bases = np.zeros((num, len(self._data)))
+    og_norm = self.__periodic_norm(self._data) # original gangsta norm
+    data_copy = self._data.copy()
+
+    for range(num):
+      # check correlation
+      max_cor = 0
+      max_period = None
+      for p in range(2,max_length):
+        # p is the period
+        cor = 0
+        for s in range(0, p):
+          cor = math.abs(sum(self._data[s::p]))
+          if cor > max_cor:
+            max_cor = cor
+            max_period = p
+
+      # check to see if it's actually any good
+      base = self.project(data_copy, max_period)
+      data_copy = data_copy - base
+      this_norm = self.__periodic_norm(data_copy)
+      norm_test = ((old_norm - this_norm) / og_norm)
+      if norm_test > ratio:
+        np.append(periods, p)
+        np.append(powers, norm_test)
+        np.append(bases, base)
+        old_norm = this_norm
+
+    return (periods, powers, bases)
+
   def best_frequency(self, num=5):
     pass
 
