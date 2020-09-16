@@ -4,6 +4,29 @@ Sethares and Staley's Periodicity Transforms in Python. See the paper [here](htt
 
 There is still much work to be done on these in terms of efficiency but it is a faithful implementation of the ideas and algorithms found in the paper. This is an alpha version so expect breaking changes in the future.
 
+## Installation
+
+__Easiest:__
+
+```
+pip install pyPeriod
+```
+
+#### Development
+__From Github__:
+
+```
+pip install git+https://github.com/woolgathering/pyPeriod
+```
+
+__Via cloning__:
+
+```
+git clone https://github.com/woolgathering/pyPeriod.git
+pip install -r pyPeriod/requirements.txt
+pip install ./pyPeriod
+```
+
 ## Usage
 ```
 import numpy as np
