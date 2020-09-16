@@ -233,8 +233,32 @@ class Periods:
     powers = norms/og_norm
     return (periods, norms, bases)
 
-  def best_frequency(self, num=5):
-    pass
+  def best_frequency(self, sr, win_size=None, num=5):
+    if win_size is None:
+      win_size = len(self._data)
+    if sr is None:
+      raise Error('Samplerate (sr) must be set!')
+
+    periods = np.zeros(num, dtype=np.uint32)
+    norms = np.zeros(num)
+    bases = np.zeros((num, len(self._data)))
+    og_norm = self.__periodic_norm(self._data) # original gangsta norm
+    data_copy = self._data.copy()
+
+    for i in range(num):
+      mags = np.abs(np.fft.rfft(data_copy, win_size)) # we only need the magnitude of the positive freqs
+      p = ((sr*0.5)/data_copy.size) * np.argmax(mags) # get the frequency
+      # p = int(np.round(1/p)) # convert it to a period and round
+      p = int(np.round(sr/p)) # convert it to a period and round
+      base = self.project(data_copy, p) # project
+      # remember it
+      periods[i] = p
+      norms[i] = self.__periodic_norm(base) / og_norm
+      bases[i] = base
+      data_copy = data_copy - base # remove it
+
+    # powers = norms / self.__periodic_norm(self._data)
+    return (periods, powers, bases)
 
 
   ######################
