@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="pyPeriod-woolgathering", # Replace with your own username
+    name="pyPeriod", # Replace with your own username
     version="0.1.0",
     author="Jacob Sundstrom",
     author_email="jacob.sundstrom@gmail.com",
