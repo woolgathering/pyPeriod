@@ -58,7 +58,7 @@ periods, powers, bases = p.best_frequency(sr=sr, win_size=None, num=10)
 - M-best
 - M-best gamma
 - Best correlation
-- Best frequency (not yet implemented)
+- Best frequency
 
 ### Documentation
 Forthcoming. Between the source and the paper, it should be pretty easy to understand in the meantime.

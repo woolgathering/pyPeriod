@@ -5,13 +5,14 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pyPeriod-woolgathering", # Replace with your own username
-    version="0.0.1",
+    version="0.1.0",
     author="Jacob Sundstrom",
     author_email="jacob.sundstrom@gmail.com",
     description="Sethares and Staley's Periodicity Transforms",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/woolgathering/pyPeriod",
+    install_requires=["numpy"],
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
