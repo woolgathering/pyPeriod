@@ -112,11 +112,6 @@ class Periods:
     periods = np.zeros(num, dtype=np.uint32)
     norms = np.zeros(num)
     bases = np.zeros((num, len(self.data)))
-    # results = {
-    #   'periods': periods,
-    #   'norms': norms,
-    #   'bases': bases
-    # }
 
     # step 1
     for i in range(num):
@@ -166,13 +161,13 @@ class Periods:
           if (nq+nQ) > (norms[num-1]+norms[i]) and (nq>min_q) and (nQ>min_q):
             changed = True
 
-            print ('Changed!')
-            status = '\
-              i = {} \n\
-              {} replaced {} in periods \n\
-              {} replaced {} in norms \n\
-            '.format(i, max_period, periods[i], nq, max_norm)
-            print (status)
+            # print ('Changed!')
+            # status = '\
+            #   i = {} \n\
+            #   {} replaced {} in periods \n\
+            #   {} replaced {} in norms \n\
+            # '.format(i, max_period, periods[i], nq, max_norm)
+            # print (status)
 
             # keep the old one but now it's weakened. Replace values.
             bases[i] = xq
