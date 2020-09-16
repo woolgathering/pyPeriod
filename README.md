@@ -44,6 +44,13 @@ periods, powers, bases = p.m_best_gamma(num=10)
 
 # find periodicities using the best correlation algorithm
 periods, powers, bases = p.best_correlation(num=10)
+
+# find periodicities using the best frequency algorithm
+periods, powers, bases = p.best_frequency(sr=sr, win_size=None, num=10)
+## note that for best frequency, we need a samplerate. The window size, if not provided,
+## is the same length as the input signal. A larger window is zero-padded, a smaller
+## window is truncated (not good).
+
 ```
 
 ### Algorithms

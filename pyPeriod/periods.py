@@ -7,6 +7,7 @@ IEEE  Transactions  on Signal  Processing, Vol. 47, No. 11, November 1999
 import numpy as np
 from functools import reduce
 import math
+from warnings import warn
 
 def interleave(x):
   a = np.empty(0)
@@ -230,34 +231,33 @@ class Periods:
         bases[i] = base
         old_norm = this_norm
 
-    powers = norms/og_norm
     return (periods, norms, bases)
 
   def best_frequency(self, sr, win_size=None, num=5):
     if win_size is None:
       win_size = len(self._data)
+    elif win_size < len(self._data):
+      warn('WARNING: win_size is smaller than the input signal length. It will be truncated and information will be lost')
     if sr is None:
       raise Error('Samplerate (sr) must be set!')
 
     periods = np.zeros(num, dtype=np.uint32)
     norms = np.zeros(num)
     bases = np.zeros((num, len(self._data)))
-    og_norm = self.__periodic_norm(self._data) # original gangsta norm
     data_copy = self._data.copy()
 
     for i in range(num):
       mags = np.abs(np.fft.rfft(data_copy, win_size)) # we only need the magnitude of the positive freqs
-      p = ((sr*0.5)/data_copy.size) * np.argmax(mags) # get the frequency
-      # p = int(np.round(1/p)) # convert it to a period and round
+      p = ((sr*0.5)/win_size) * np.argmax(mags) # get the frequency
       p = int(np.round(sr/p)) # convert it to a period and round
       base = self.project(data_copy, p) # project
       # remember it
       periods[i] = p
-      norms[i] = self.__periodic_norm(base) / og_norm
+      norms[i] = self.__periodic_norm(base)
       bases[i] = base
       data_copy = data_copy - base # remove it
 
-    # powers = norms / self.__periodic_norm(self._data)
+    powers = norms / self.__periodic_norm(self._data)
     return (periods, powers, bases)
 
 
