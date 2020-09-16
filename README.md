@@ -6,6 +6,7 @@ There is still much work to be done on these in terms of efficiency but it is a 
 
 ## Usage
 ```
+import numpy as np
 from pyPeriod import Periods
 from random import uniform
 
