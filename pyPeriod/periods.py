@@ -49,35 +49,39 @@ class Periods:
     else:
       self._data = np.array(data)
 
-  def project(self, data, p=2):
-    if p==1:
-      return data
+  @staticmethod
+  def project(data, p=2, trunc_to_integer_multiple=False):
+    cp = data.copy()
+    excess_samples = np.mod(len(cp), p)
+    if trunc_to_integer_multiple:
+      cp = cp[:-1*excess_samples]
     else:
-      N = len(data)
-      projection = np.empty(N)
-      fac = 1/math.floor(N/p)
-      for s in range(p):
-        this_sum = 0
-        count = 0
-        for n in range(math.ceil(N/p)):
-          try:
-            this_sum += data[s+(n*p)]
-            count += 1
-          except IndexError:
-            pass # ignore it and move on
-            # break # ignore it and move on
-        val = this_sum/count # get the average
+      for i in range(excess_samples):
+        cp[i] = (cp[i] + cp[-1*(i+1)]) * 0.5 # get the average
+      cp = cp[:len(cp)-excess_samples] # just save the important part now
 
-        # repopulate immediately so we don't have to interleave later (save a loop)
-        for n in range(math.ceil(N/p)):
-          try:
-            projection[s+(n*p)] = val
-          except IndexError:
-            pass # ignore it and move on
-            # break # ignore it and move on
+    # now that it can be made a rectangular matrix, reshape it and get the average
+    cp = cp.reshape(int(cp.size/p), p) # reshape it
+    single_period = np.mean(cp, 0) # just take the mean and output a single period
+    projection = np.tile(single_period, int(data.size/p)+1)[:len(data)] # extend the period and take the good part
+    return projection
 
-      return projection # return the project
+  @classmethod
+  def project(data, p=2, trunc_to_integer_multiple=False):
+    cp = data.copy()
+    excess_samples = np.mod(len(cp), p)
+    if trunc_to_integer_multiple:
+      cp = cp[:-1*excess_samples]
+    else:
+      for i in range(excess_samples):
+        cp[i] = (cp[i] + cp[-1*(i+1)]) * 0.5 # get the average
+      cp = cp[:len(cp)-excess_samples] # just save the important part now
 
+    # now that it can be made a rectangular matrix, reshape it and get the average
+    cp = cp.reshape(int(cp.size/p), p) # reshape it
+    single_period = np.mean(cp, 0) # just take the mean and output a single period
+    projection = np.tile(single_period, int(data.size/p)+1)[:len(data)] # extend the period and take the good part
+    return projection
 
   def __periodic_norm(self, x, p=None):
     # extra arg there to make m_best easier. Can be setup cleaner later.
