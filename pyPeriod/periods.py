@@ -54,24 +54,8 @@ class Periods:
     cp = data.copy()
     excess_samples = np.mod(len(cp), p)
     if trunc_to_integer_multiple:
-      cp = cp[:-1*excess_samples]
-    else:
-      for i in range(excess_samples):
-        cp[i] = (cp[i] + cp[-1*(i+1)]) * 0.5 # get the average
-      cp = cp[:len(cp)-excess_samples] # just save the important part now
-
-    # now that it can be made a rectangular matrix, reshape it and get the average
-    cp = cp.reshape(int(cp.size/p), p) # reshape it
-    single_period = np.mean(cp, 0) # just take the mean and output a single period
-    projection = np.tile(single_period, int(data.size/p)+1)[:len(data)] # extend the period and take the good part
-    return projection
-
-  @classmethod
-  def project(data, p=2, trunc_to_integer_multiple=False):
-    cp = data.copy()
-    excess_samples = np.mod(len(cp), p)
-    if trunc_to_integer_multiple:
-      cp = cp[:-1*excess_samples]
+      if not excess_samples==0:
+        cp = cp[:-1*excess_samples]
     else:
       for i in range(excess_samples):
         cp[i] = (cp[i] + cp[-1*(i+1)]) * 0.5 # get the average
