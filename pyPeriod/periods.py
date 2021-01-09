@@ -44,7 +44,10 @@ class Periods:
 
   def __init__(self, data):
     super(Periods, self).__init__()
-    self._data = data
+    if isinstance(data, np.ndarray):
+      self._data = data
+    else:
+      self._data = np.array(data)
 
   def project(self, data, p=2):
     if p==1:
