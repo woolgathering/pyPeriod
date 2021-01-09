@@ -122,25 +122,36 @@ class Periods:
     bases = np.zeros((num, len(self.data)))
 
     # step 1
-    for i in range(num):
+    i = 0
+    while i < num:
       max_norm = 0
       max_period = 0
       max_base = None
       for p in range(2,max_length):
         # rewrite this. It's REALLY redundant and can be made a lot faster
+
         base = self.project(data_copy, p)
         p_norm = func_name(base, p)
         if p_norm > max_norm:
           max_period = p
           max_norm = p_norm
           max_base = base
-      periods[i] = max_period
-      norms[i] = max_norm
-      bases[i] = max_base
+
+      # it's already in periods so add it to the old one
+      # otherwise, add it anew
+      if max_period in set(periods):
+        idx = np.where(periods==max_period)[0]
+        bases[idx] += max_base
+        norms[idx] += max_norm # probably need to recalculate the norm but leave it for now
+      else:
+        periods[i] = max_period
+        norms[i] = max_norm
+        bases[i] = max_base
+        i += 1 # only increment i if we add a new period
+
       data_copy = data_copy - max_base # remove the best one and do it again
 
     # step 2
-    print ('Now we\'re on step 2')
     changed = True
     while changed:
       i = 0
@@ -158,7 +169,7 @@ class Periods:
             max_norm = norm
             max_base = base
 
-        if max_period not in periods and max_period is not None:
+        if max_period not in set(periods) and max_period is not None:
           # xQ = self.project(bases[i], max_period) # redundant
           xQ = max_base
           xq = bases[i] - xQ
