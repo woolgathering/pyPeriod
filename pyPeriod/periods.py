@@ -412,7 +412,16 @@ class Periods:
           subtract that from the original to get the new residual.
           """
           ##########################
-          res = self._data - self.solve_quadratic(self._data, basis_matricies, gcd_matricies) # get the new residual and do it again
+          try:
+            res = self._data - self.solve_quadratic(self._data, basis_matricies, gcd_matricies) # get the new residual and do it again
+          except np.linalg.LinAlgError:
+            # in the event of a singular matrix, go back one and call it
+            basis_matricies = basis_matricies[:-1]
+            nonzero_periods = nonzero_periods[:-1]
+
+            gcd_matricies = gcd_matricies[:-1]
+            gcd_added = gcd_added[:-1] # check this first
+            break
       else:
         break # rms is too low, get out
 
