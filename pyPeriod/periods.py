@@ -583,7 +583,7 @@ class Periods:
             'subspaces': gcd_matricies,
             'weights': gcd_weights
         }
-        return (output_bases, output_gcds, output_weights)
+        return (output_bases, output_gcds, output_weights, res)
 
     @staticmethod
     def solve_quadratic(x, bases, gcds):
