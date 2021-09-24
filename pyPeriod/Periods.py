@@ -10,11 +10,37 @@ import math
 from warnings import warn
 import itertools
 
+
 ################################################################################
 ################################################################################
 ################################################################################
 def rms(x):
     return np.sqrt(np.sum(np.power(x, 2)) / len(x))
+
+
+def get_primes(max=1000000):
+    primes = np.arange(3, max + 1, 2)
+    isprime = np.ones((max - 1) // 2, dtype=bool)
+    for factor in primes[:int(np.sqrt(max))]:
+        if isprime[(factor - 2) // 2]:
+            isprime[(factor * 3 - 2) // 2::factor] = 0
+    return np.insert(primes[isprime], 0, 2)
+
+
+def get_factors(n, remove_1_and_n=False):
+    """
+        Get all factors of some n as a set
+    """
+    facs = set(
+        reduce(list.__add__, ([i, n // i]
+                              for i in range(1,
+                                             int(n**0.5) + 1) if n % i == 0)))
+    # get rid of 1 and the number itself
+    if remove_1_and_n:
+        facs.remove(1)
+        facs.remove(n)
+    return facs  # retuned as a set
+
 
 ################################################################################
 ################################################################################

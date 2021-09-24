@@ -1,7 +1,8 @@
 import numpy as np
 from functools import reduce
 import itertools
-from numba import jit, vectorize, float64, float32, int64, int32
+# from numba import jit, vectorize, float64, float32, int64, int32 # not included yet
+
 
 def phi(n):
     """
@@ -19,9 +20,9 @@ def get_factors(n, remove_1_and_n=False):
         Get all factors of some n as a set
     """
     facs = set(
-        reduce(list.__add__,
-               ([i, n // i] for i in range(1,
-                                           int(n**0.5) + 1) if n % i == 0)))
+        reduce(list.__add__, ([i, n // i]
+                              for i in range(1,
+                                             int(n**0.5) + 1) if n % i == 0)))
     # get rid of 1 and the number itself
     if remove_1_and_n:
         facs.remove(1)
@@ -55,13 +56,16 @@ class RamanujanPeriods:
         self._output = None
         self._verbose = None
 
-
-    def find_periods(self, x, min_length=2, max_length=None, select_periods=None):
+    def find_periods(self,
+                     x,
+                     min_length=2,
+                     max_length=None,
+                     select_periods=None):
         if not max_length:
             max_length = len(x) // 3
 
-        norms = np.zeros(max_length+1)
-        for p in range(min_length, max_length+1):
+        norms = np.zeros(max_length + 1)
+        for p in range(min_length, max_length + 1):
             basis = self.Cq_complete(p, len(x))
             projection = RamanujanPeriods.project(x, basis)
             output = np.sum(projection, 0)
@@ -74,19 +78,25 @@ class RamanujanPeriods:
         else:
             return norms
 
-    def find_periods_with_weights(self, x, min_length=2, max_length=None, thresh=0.2):
-        norms = self.find_periods(x, min_length, max_length, select_periods=None)
+    def find_periods_with_weights(self,
+                                  x,
+                                  min_length=2,
+                                  max_length=None,
+                                  thresh=0.2):
+        norms = self.find_periods(x,
+                                  min_length,
+                                  max_length,
+                                  select_periods=None)
         norms = norms / np.abs(np.max(norms))
         periods = np.argwhere(norms > thresh).flatten()
         if self._verbose:
-            print ('Found periods {}'.format(periods))
+            print('Found periods {}'.format(periods))
 
         basis_matricies, basis_dictionary = self.get_subspaces(
             periods, len(x)
         )  # get the subspaces and a dictionary describing its construction
         resconst, output_weights = self.solve_quadratic(
-            x, basis_matricies
-        )  # get the new residual and do it again
+            x, basis_matricies)  # get the new residual and do it again
         res = x - resconst  # get the residual
 
         output_bases = {
@@ -105,7 +115,7 @@ class RamanujanPeriods:
         periods = self._output['periods']
         cp = self.concatenate_periods(weights, dictionary)
         A = self.stack_pairwise_gcd_subspaces(periods)
-        print ('Dimensions of A_redistribution: {}'.format(A.shape))
+        print('Dimensions of A_redistribution: {}'.format(A.shape))
         A = reduce_rows(A)
         reconst, coeffs = self.solve_quadratic(cp, A)
         actual_cp = cp - reconst
@@ -150,32 +160,21 @@ class RamanujanPeriods:
 
                 row = np.append(row, ss)
 
-            subspace.append(row) # essentiall np.roll(row, 0)
+            subspace.append(row)  # essentiall np.roll(row, 0)
             for i in range(1, gcd):
                 subspace.append(np.roll(row, i))
 
         return np.vstack(tuple(subspace))
 
     @staticmethod
-    @jit(nopython=False, parallel=True)
+    # @jit(nopython=False, parallel=True)
     def project(x, basis):
         proj_complete = np.zeros(basis.shape)
-        for i,row in enumerate(basis):
+        for i, row in enumerate(basis):
             row = row / np.max(row)
             proj = np.dot(x, row) * row
             proj_complete[i] = proj
         return proj_complete
-
-    # @staticmethod
-    # @jit(nopython=True, parallel=True)
-    # # @vectorize([int32(int32, int32), int64(int64, int64), float32(float32, float32), float64(float64, float64)])
-    # def project(x, basis):
-    #     # proj_complete = np.zeros(basis.shape)
-    #     basis = basis / np.max(basis)
-    #     # proj = np.matmul(np.tile(x, (basis.shape[0],1)).T, basis) * basis
-    #     xx = x.repeat(basis.shape[0]).reshape((-1, basis.shape[0]))
-    #     proj = np.sum(xx * basis, 1) * basis
-    #     return proj
 
     @staticmethod
     # @jit(nopython=True, parallel=True)
@@ -204,16 +203,17 @@ class RamanujanPeriods:
             F = get_factors(q)  # get all the factors of q
             R = R.union(F)  # union of all previous factors with new factors
             s = np.sum([phi(r) for r in R
-                       ])  # sum the Eulers totient of all factors in R
+                        ])  # sum the Eulers totient of all factors in R
             d[str(
-                q)] = s - old_dimensionality  # get the dimensionality of this q
+                q
+            )] = s - old_dimensionality  # get the dimensionality of this q
             old_dimensionality = s  # remember the old dimensionality
 
         ## stack matricies as necessary
         A = np.array([]).reshape((0, N))
         for q, keep in d.items():
-            A = np.vstack((A, self.Pt_complete(int(q), N, keep,
-                                               self._basis_type)))
+            A = np.vstack(
+                (A, self.Pt_complete(int(q), N, keep, self._basis_type)))
             # A = np.vstack((A, self.Cq_complete(int(q), N)))
         return (A, d)
 

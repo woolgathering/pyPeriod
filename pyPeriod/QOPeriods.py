@@ -11,9 +11,11 @@ import random
 from scipy import linalg as spla
 import warnings
 
+
 def remove_random_rows(arr, keep):
     idxs = np.array(random.sample(range(arr.shape[0]), keep))
     return arr[idxs]
+
 
 def phi(n):
     """
@@ -31,9 +33,9 @@ def get_factors(n, remove_1_and_n=False):
         Get all factors of some n as a set
     """
     facs = set(
-        reduce(list.__add__,
-               ([i, n // i] for i in range(1,
-                                           int(n**0.5) + 1) if n % i == 0)))
+        reduce(list.__add__, ([i, n // i]
+                              for i in range(1,
+                                             int(n**0.5) + 1) if n % i == 0)))
     # get rid of 1 and the number itself
     if remove_1_and_n:
         facs.remove(1)
@@ -121,12 +123,12 @@ class QOPeriods:
     ##############################################################################
     ##############################################################################
     def find_periods(self,
-                               data,
-                               num=None,
-                               thresh=None,
-                               min_length=2,
-                               max_length=None,
-                               **kwargs):
+                     data,
+                     num=None,
+                     thresh=None,
+                     min_length=2,
+                     max_length=None,
+                     **kwargs):
         """
         Using quadradic optimization to find the best periods.
 
@@ -195,8 +197,7 @@ class QOPeriods:
                 if self._verbose:
                     print('New period: {}'.format(best_p))
 
-                basis_matricies = [
-                ]  # a list to later be changed into a tuple
+                basis_matricies = []  # a list to later be changed into a tuple
                 nonzero_periods = periods[periods >
                                           0]  # periods that are not 0
                 basis_matricies, basis_dictionary = self.get_subspaces(
@@ -270,7 +271,8 @@ class QOPeriods:
             pl, A = spla.lu(A, permute_l=True)
             A_prime = np.matmul(A, A.T)  # multiply by its transpose
             W = np.matmul(A, cp)  # multiply by the data
-            result = np.linalg.lstsq(A_prime, W, rcond=None)  # actually solve it
+            result = np.linalg.lstsq(A_prime, W,
+                                     rcond=None)  # actually solve it
             reconstructed = np.matmul(A.T, result[0])  # reconstruct the result
             actual_cp = cp - reconstructed
             actual_periods = []
@@ -283,7 +285,8 @@ class QOPeriods:
             q, A = spla.qr(A, pivoting=False)
             A_prime = np.matmul(A, A.T)  # multiply by its transpose
             W = np.matmul(A, cp)  # multiply by the data
-            result = np.linalg.lstsq(A_prime, W, rcond=None)  # actually solve it
+            result = np.linalg.lstsq(A_prime, W,
+                                     rcond=None)  # actually solve it
             reconstructed = np.matmul(A.T, result[0])  # reconstruct the result
             actual_cp = cp - reconstructed
             actual_periods = []
@@ -294,7 +297,6 @@ class QOPeriods:
 
         else:
             raise Error('Unrecognized decomp_type: {}'.format(decomp_type))
-
 
     @staticmethod
     def solve_quadratic(x, A, type='solve'):
@@ -309,7 +311,8 @@ class QOPeriods:
             reconstructed = np.matmul(A.T, output[0])  # reconstruct the output
             return (reconstructed, output[0])
         else:
-            warnings.warn('type ({}) unrecognized. Defaulting to lstsq.'.format(type))
+            warnings.warn(
+                'type ({}) unrecognized. Defaulting to lstsq.'.format(type))
             output = np.linalg.lstsq(A_prime, W)  # actually solve it
             reconstructed = np.matmul(A.T, output[0])  # reconstruct the output
             return (reconstructed, output[0])
@@ -332,16 +335,17 @@ class QOPeriods:
             F = get_factors(q)  # get all the factors of q
             R = R.union(F)  # union of all previous factors with new factors
             s = np.sum([phi(r) for r in R
-                       ])  # sum the Eulers totient of all factors in R
+                        ])  # sum the Eulers totient of all factors in R
             d[str(
-                q)] = s - old_dimensionality  # get the dimensionality of this q
+                q
+            )] = s - old_dimensionality  # get the dimensionality of this q
             old_dimensionality = s  # remember the old dimensionality
 
         ## stack matricies as necessary
         A = np.array([]).reshape((0, N))
         for q, keep in d.items():
-            A = np.vstack((A, self.Pt_complete(int(q), N, keep,
-                                               self._basis_type)))
+            A = np.vstack(
+                (A, self.Pt_complete(int(q), N, keep, self._basis_type)))
         return (A, d)
 
     @staticmethod
@@ -377,7 +381,7 @@ class QOPeriods:
 
                 row = np.append(row, ss)
 
-            subspace.append(row) # essentiall np.roll(row, 0)
+            subspace.append(row)  # essentiall np.roll(row, 0)
             for i in range(1, gcd):
                 subspace.append(np.roll(row, i))
 
