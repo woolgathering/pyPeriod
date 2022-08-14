@@ -108,12 +108,15 @@ class Periods:
         # here we allow the output to assume the dimensions of the input. See above
         # line of code.
         if orthogonalize:
-            for f in get_factors(p, remove_1_and_n=True):
-                if f in Periods.PRIMES:
-                    # remove the projection at p/prime_factor, taking care not to remove things twice.
-                    projection = projection - Periods.project(
-                        projection, int(p / f), trunc_to_integer_multiple,
-                        False)
+            if p <= 1:
+                pass
+            else:
+                for f in get_factors(p, remove_1_and_n=True):
+                    if f in Periods.PRIMES:
+                        # remove the projection at p/prime_factor, taking care not to remove things twice.
+                        projection = projection - Periods.project(
+                            projection, int(p / f), trunc_to_integer_multiple,
+                            False)
 
         if return_single_period:
             return projection[0:p]  # just a single period
@@ -234,9 +237,9 @@ class Periods:
         return self._m_best_meta('gamma', num, max_length, min_length)
 
     def _m_best_meta(self, type, num=5, max_length=None, min_length=2):
-        # remind the user that orthogonalize has no effect here
-        if self.orthogonalize:
-            warn("`Orthogonalize = True` has no effect in M-best.")
+        # # remind the user that orthogonalize has no effect here
+        # if self.orthogonalize:
+        #     warn("`Orthogonalize = True` has no effect in M-best.")
 
         if max_length is None:
             max_length = math.floor(len(self.data) / 3)
@@ -256,8 +259,10 @@ class Periods:
             max_base = None
             # print ('Number {}'.format(i))
             for p in range(min_length, max_length + 1):
+                # base = self.project(data_copy, p,
+                #                     self._trunc_to_integer_multiple, False)
                 base = self.project(data_copy, p,
-                                    self._trunc_to_integer_multiple, False)
+                                    self._trunc_to_integer_multiple, self._orthogonalize)
                 if type is None:
                     p_norm = self.periodic_norm(base)  # m-best
                 else:
@@ -300,7 +305,7 @@ class Periods:
                 facs = get_factors(periods[i], remove_1_and_n=True)
                 for f in facs:
                     base = self.project(bases[i], f,
-                                        self._trunc_to_integer_multiple, False)
+                                        self._trunc_to_integer_multiple, self._orthogonalize)
                     if type is None:
                         norm = self.periodic_norm(base)
                     else:
