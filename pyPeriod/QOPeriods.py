@@ -77,6 +77,10 @@ class QOPeriods:
         self._orthogonalize = orthogonalize
         self._window = False
 
+        # for the test function
+        self._output_bases = None
+        self._container = []
+
     @staticmethod
     def project(data,
                 p=2,
@@ -84,20 +88,15 @@ class QOPeriods:
                 orthogonalize = False,
                 return_single_period=False):
         cp = data.copy()
-        samples_short = int(
-            np.ceil(len(cp) / p) * p -
-            len(cp))  # calc how many samples short for rectangle
+        samples_short = int(np.ceil(len(cp) / p) * p - len(cp))  # calc how many samples short for rectangle
         cp = np.pad(cp, (0, samples_short))  # pad it
         cp = cp.reshape(int(len(cp) / p), p)  # reshape it to a rectangle
 
         if trunc_to_integer_multiple:
             if samples_short == 0:
-                single_period = np.mean(cp,
-                                        0)  # don't need to omit the last row
+                single_period = np.mean(cp, 0)  # don't need to omit the last row
             else:
-                single_period = np.mean(
-                    cp[:-1], 0
-                )  # just take the mean of the truncated version and output a single period
+                single_period = np.mean(cp[:-1], 0)  # just take the mean of the truncated version and output a single period
         else:
             ## this is equivalent to the method presented in the paper but significantly faster ##
             # do the mean manually. get the divisors from the last row since the last samples_short values will be one less than the others
@@ -177,7 +176,6 @@ class QOPeriods:
         norms = np.zeros(num)
         bases = np.zeros((num, N))
         res = data.copy()  # copy
-        old_res = np.zeros(len(data))
         if self._window:
             window = np.hanning(N)
         else:
@@ -187,13 +185,16 @@ class QOPeriods:
         if 'test_function' in kwargs.keys():
             test_function = kwargs['test_function']
         else:
-            test_function = lambda self, x, y, y1, o: rms(y) > (rms(data) * thresh)
+            test_function = lambda self, x, y: rms(y) > (rms(data) * thresh)
 
         # these get recomputed (!!!) each time but stick them here so we can exit whenever
-        basis_matricies = None  # a list to later be changed into a tuple
-        nonzero_periods = None  # periods that are not 0
-        output_weights = None  # coefficients
-        basis_dictionary = None  # dictionary describing the construction of basis_matricies
+        output_bases = {
+            'periods': [],
+            'norms': [],
+            'subspaces': [],
+            'weights': [],
+            'basis_dictionary': {}
+        }
 
         ## default to what we'd get if it were a vector of 0's ##
         if np.sum(np.abs(data)) <= 1e-16:
@@ -208,7 +209,7 @@ class QOPeriods:
             return (output_bases, np.zeros(N))
 
         for i in range(num):
-            if i == 0 or test_function(self, data, res, old_res, output_bases):
+            if i == 0 or test_function(self, data, reconstruction):
                 if self._verbose:
                     print('##########################################\ni = {}'.format(i))
                 best_p = 0
@@ -217,13 +218,17 @@ class QOPeriods:
 
                 if self._orthogonalize:
                     best_p = self.get_best_period_orthogonal(res, max_length, normalize=True)
+                    if self._verbose:
+                        print('Best period here: {}'.format(best_p))
+                    if best_p < 1:
+                        break
                     best_base = self.project(res, best_p, self._trunc_to_integer_multiple, True) # always orthogonalize
                     best_norm = self.periodic_norm(best_base, best_p)
                 else:
                     for p in range(min_length, max_length + 1):
                         this_base = self.project(res, p,
                                                  self._trunc_to_integer_multiple,
-                                                 False)
+                                                 True) # orthogonalize the projection
                         this_norm = self.periodic_norm(this_base, p)
                         if this_norm > best_norm:
                             best_p = p
@@ -234,12 +239,25 @@ class QOPeriods:
                 periods[i] = best_p
                 norms[i] = best_norm
                 bases[i] = best_base
-
-
                 if self._verbose:
                     print('New period: {}'.format(best_p))
 
                 nonzero_periods = periods[periods > 0]  # periods that are not 0
+                # tup = self.compute_reconstruction(data, nonzero_periods, window)
+                #
+                # # this means that a singular matrix was encountered. Stop here.
+                # if tup is None:
+                #     break
+                # else:
+                #     # otherwise continue
+                #     reconstruction = tup[0]
+                #     output_bases = tup[1]
+                #
+                #     res = data - reconstruction  # get the residual
+                #     output_bases['norms'] = norms[:len(nonzero_periods)]
+                #     self._output_bases = output_bases
+
+
                 basis_matricies, basis_dictionary = self.get_subspaces(
                     nonzero_periods, N
                 )  # get the subspaces and a dictionary describing its construction
@@ -268,6 +286,7 @@ class QOPeriods:
                         'weights': output_weights,
                         'basis_dictionary': basis_dictionary
                     }
+                    self._output_bases = output_bases
 
                     # remember old stuff
                     old_basis = basis_matricies
@@ -282,9 +301,26 @@ class QOPeriods:
                         )
                     break
             else:
+                basis_matricies, basis_dictionary = self.get_subspaces(
+                    nonzero_periods[:-1], N
+                )  # get the subspaces and a dictionary describing its construction
+                output_weights, reconstruction = self.solve_quadratic(
+                    data, basis_matricies, window=window
+                )  # get the new reconstruction and do it again
+                old_res = res  # get the residual
+                res = data - reconstruction  # get the residual
+
+                ## set things here since it's also passed to test_function() ##
+                output_bases = {
+                    'periods': nonzero_periods[:-1],
+                    'norms': norms[:len(nonzero_periods)-1],
+                    'subspaces': basis_matricies,
+                    'weights': output_weights,
+                    'basis_dictionary': basis_dictionary
+                }
+                self._output_bases = output_bases
                 break  # test_function returned False. Exit.
 
-        self._output = output_bases
         return (output_bases, res)
 
     def get_periods(self, weights, dictionary, decomp_type='row reduction'):
@@ -295,18 +331,13 @@ class QOPeriods:
         if decomp_type == 'row reduction':
             A = reduce_rows(A) # ought not to introduce truncation erros with integers
             coeffs, reconstructed = self.solve_quadratic(cp, A, self._k, type='solve')
-
         elif decomp_type == 'lu':
             PL, U = spla.lu(A, permute_l=True)
             coeffs, reconstructed = self.solve_quadratic(cp, U, self._k, type='solve')
-
         elif decomp_type == 'qr':
-            # Q, R = spla.qr(A, pivoting=False)
-            Q, R = np.linalg.qr(A)
+            Q, R = np.linalg.qr(A, mode='complete')
             coeffs, reconstructed = self.solve_quadratic(cp, R, self._k, type='solve')
-
         else:
-            # raise TypeError('Unrecognized decomp_type: {}'.format(decomp_type))
             coeffs, reconstructed = self.solve_quadratic(cp, A, self._k, type='lstsq')
 
         actual_cp = cp - reconstructed
@@ -320,12 +351,12 @@ class QOPeriods:
     def solve_quadratic(x, A, k=0, type='solve', window=None):
 
         #### windowing
-        if window is not None:
-            A_prime = np.matmul(A * window, A.T)  # multiply by its transpose (covariance)
-            W = np.matmul(A * window, x)  # multiply by the data
-        else:
+        if (window is None) or (window is False):
             A_prime = np.matmul(A, A.T)  # multiply by its transpose (covariance)
             W = np.matmul(A, x)  # multiply by the data
+        else:
+            A_prime = np.matmul(A * window, A.T)  # multiply by its transpose (covariance)
+            W = np.matmul(A * window, x)  # multiply by the data
         ####
 
         ## Regularization ## if doing this, don't drop rows from A, keep them all
@@ -337,13 +368,13 @@ class QOPeriods:
             return (output, reconstructed)
         elif type == 'lstsq':
             output = np.linalg.lstsq(A_prime, W, rcond=None)  # actually solve it
-            reconstructed = np.matmul(A.T, output)  # reconstruct the output
+            reconstructed = np.matmul(A.T, output[0])  # reconstruct the output
             return (output[0], reconstructed)
         else:
             warnings.warn(
                 'type ({}) unrecognized. Defaulting to lstsq.'.format(type))
             output = np.linalg.lstsq(A_prime, W, rcond=None)  # actually solve it
-            reconstructed = np.matmul(A.T, output)  # reconstruct the output
+            reconstructed = np.matmul(A.T, output[0])  # reconstruct the output
             return (output[0], reconstructed)
 
     def get_subspaces(self, Q, N):
@@ -371,6 +402,7 @@ class QOPeriods:
         A = np.array([]).reshape((0, N))
         if self._k == 0:
             for q, keep in d.items():
+#                 A = np.vstack((A, self.Pp(int(q), N, keep, self._basis_type) * np.sqrt(int(q)) ))
                 A = np.vstack((A, self.Pp(int(q), N, keep, self._basis_type)))
         else:
             for q, keep in d.items():
@@ -408,6 +440,8 @@ class QOPeriods:
                             ss = self.Pp_column(gcd, 0, int(p / gcd))
                     else:
                         ss = np.zeros(p)
+
+                    # ss /= int(p/gcd)
                     row = np.append(row, ss)
 
                 subspace.append(row)  # essentiall np.roll(row, 0)
@@ -470,6 +504,43 @@ class QOPeriods:
                 print('Return type invalid, defaulting to \'real\'')
             return np.real(vec)
 
+    def compute_reconstruction(self, x, periods, type='lstsq', window=None):
+        basis_matricies, basis_dictionary = self.get_subspaces(
+            periods, len(x)
+        )  # get the subspaces and a dictionary describing its construction
+        if self._verbose:
+            print('\tDictionary: {}'.format(basis_dictionary))
+
+        ##########################
+        """
+        Now we have all of the basis subspaces AND their factors, correctly shaped.
+        Find the best representation of the signal using the non-zero periods and
+        subtract that from the original to get the new residual.
+        """
+        ##########################
+        try:
+            output_weights, reconstruction = self.solve_quadratic(
+                x, basis_matricies, window=window, type=type
+            )  # get the new reconstruction and do it again
+
+            ## set things here since it's also passed to test_function() ##
+            output_bases = {
+                'periods': periods,
+                'subspaces': basis_matricies,
+                'weights': output_weights,
+                'basis_dictionary': basis_dictionary
+                # norms: defined outside
+            }
+        except np.linalg.LinAlgError:
+            # in the event of a singular matrix, go back one and call it
+            if self._verbose:
+                print(
+                    '\tSingular matrix encountered: going back one iteration and exiting loop'
+                )
+            return None
+
+        return (reconstruction, output_bases)
+
     #######################################################
     ## Equations for orthogonal period finding. Straight from Muresan with slight
     ## optimization tweaks.
@@ -510,7 +581,10 @@ class QOPeriods:
         if return_powers:
             return pows
         else:
-            return np.argmax(pows) # return the strongest period
+            if np.argmax(pows) > 0:
+                return Q[np.argmax(pows)] # return the strongest period
+            else:
+                return 1 # if the max is 0, return 1 instead (same thing)
     #######################################################
 
     ### Properties
@@ -558,3 +632,10 @@ class QOPeriods:
             self._window = value
         return locals()
     window = property(**window())
+
+    def output_bases():
+        doc = "The output_bases property"
+        def fget(self):
+            return self._output_bases
+        return locals()
+    output_bases = property(**output_bases())
