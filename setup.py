@@ -8,8 +8,7 @@ setuptools.setup(
     version="0.2.4",
     author="Jacob Sundstrom",
     author_email="jacob.sundstrom@gmail.com",
-    description=
-    "Periodicity Transforms in Python (Sethares and Staley, Ramanujan, my own)",
+    description="Periodicity Transforms in Python (Sethares and Staley)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/woolgathering/pyPeriod",
@@ -20,5 +19,5 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires=">=3.6",
 )
