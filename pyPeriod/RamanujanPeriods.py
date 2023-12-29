@@ -2,69 +2,19 @@ import numpy as np
 from functools import reduce
 import itertools
 from pyPeriod import QOPeriods
+from typing import Callable
+from warnings import warn
+from .utils import get_factors, get_primes, phi, rms
 
 # from numba import jit, vectorize, float64, float32, int64, int32 # not included yet
 
-# try:
-#     import cupy as np
-# except ModuleNotFoundError:
-#     import numpy as np
-
-
-def phi(n):
-    """
-    Euler's totient function
-    """
-    amount = 0
-    for k in range(1, n + 1):
-        if np.gcd(n, k) == 1:
-            amount += 1
-    return amount
-
-
-def get_factors(n, remove_1_and_n=False):
-    """
-    Get all factors of some n as a set
-    """
-    facs = set(
-        reduce(
-            list.__add__,
-            ([i, n // i] for i in range(1, int(n ** 0.5) + 1) if n % i == 0),
-        )
-    )
-    # get rid of 1 and the number itself
-    if remove_1_and_n:
-        facs.remove(1)
-        facs.remove(n)
-    return facs  # retuned as a set
-
-
-def rms(x):
-    return np.sqrt(np.sum(np.power(x, 2)) / len(x))
-
-
-def flatten(t):
-    return [item for sublist in t for item in sublist]
-
-
-def reduce_rows(A):
-    AA = A[0]
-    rank = np.linalg.matrix_rank(AA)  # should be 1
-    for row in A[1:]:
-        aa = np.vstack((AA, row))
-        if np.linalg.matrix_rank(aa) > int(rank):
-            AA = aa
-            rank = np.linalg.matrix_rank(aa)
-    return AA
-
-
-class RamanujanPeriods(QOPeriods):
+class RamanujanPeriods:
     def __init__(self, basis_type="natural"):
         self._basis_type = basis_type
         self._output = None
         self._verbose = None
 
-    def find_periods(self, x, min_length=2, max_length=None, select_periods=None):
+    def find_periods(self, x:np.ndarray, min_length:int=2, max_length:int=None, select_periods:Callable=None) -> np.ndarray:
         if not max_length:
             max_length = len(x) // 3
 
@@ -73,7 +23,7 @@ class RamanujanPeriods(QOPeriods):
             if self._verbose:
                 print("Processing for period {}".format(p))
             basis = self.Cq_complete(p, len(x))
-            projection = RamanujanPeriods.project(x, basis)
+            projection = self.project(x, basis)
             output = np.sum(projection, 0)
             norms[p] = np.sum(np.power(output, 2))
             if self._verbose:
@@ -88,7 +38,7 @@ class RamanujanPeriods(QOPeriods):
     def find_periods_with_weights(
         self, x, min_length=2, max_length=None, thresh=0.2, **kwargs
     ):
-        norms = self.find_periods(x, min_length, max_length, select_periods=None)
+        norms = self.find_periods(x, min_length, max_length, select_periods=kwargs.get('select_periods', None))
 
         # if test_function is set, thresh is overridden
         if "test_function" in kwargs.keys():
@@ -121,17 +71,14 @@ class RamanujanPeriods(QOPeriods):
         self._output = output_bases
         return (output_bases, res)
 
-    @staticmethod
-    # @jit(nopython=False, parallel=True)
-    def project(x, basis):
+    def project(self, x, basis):
         proj_complete = np.zeros(basis.shape, dtype=np.float32)
         for i, row in enumerate(basis):
             row = row / np.max(row)
             proj_complete[i] = np.dot(x, row) * row
         return proj_complete
 
-    @staticmethod
-    def Cq(q, s=0, repetitions=1, type="real"):
+    def Cq(self, q, s=0, repetitions=1, type="real"):
         vec = np.zeros(q, dtype=complex)
         k = []
         for i in range(q):
@@ -149,8 +96,7 @@ class RamanujanPeriods(QOPeriods):
         elif type == "complex":
             return vec
         else:
-            if self._verbose:
-                print("Return type invalid, defaulting to 'real'")
+            warn("Return type invalid, defaulting to 'real'")
             return np.real(vec)
 
     def Cq_complete(self, q, N=None, normalize=True):

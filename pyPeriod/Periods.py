@@ -5,84 +5,8 @@ IEEE  Transactions  on Signal  Processing, Vol. 47, No. 11, November 1999
 """
 
 import numpy as np
-from functools import reduce
-import math
 from warnings import warn
-
-
-################################################################################
-################################################################################
-################################################################################
-def rms(x: list) -> float:
-    """
-    Calculate the root mean square of a given array.
-
-    Parameters
-    ----------
-    x : array_like
-        Input array.
-
-    Returns
-    -------
-    float
-        The root mean square of the input array.
-    """
-    return np.sqrt(np.sum(np.power(x, 2)) / len(x))
-
-
-def get_primes(max: int = 1000000) -> list[int]:
-    """
-    Generate all prime numbers up to a given maximum.
-
-    Parameters
-    ----------
-    max : int, optional
-        The maximum number up to which to generate primes, by default 1000000.
-
-    Returns
-    -------
-    array_like
-        An array of all prime numbers up to the given maximum.
-    """
-    primes = np.arange(3, max + 1, 2)
-    isprime = np.ones((max - 1) // 2, dtype=bool)
-    for factor in primes[: int(np.sqrt(max))]:
-        if isprime[(factor - 2) // 2]:
-            isprime[(factor * 3 - 2) // 2 :: factor] = 0
-    return np.insert(primes[isprime], 0, 2)
-
-
-def get_factors(n: int, remove_1: bool = False, remove_n: bool = False) -> set:
-    """
-    Get all factors of a given number.
-
-    Parameters
-    ----------
-    n : int
-        The number to factor.
-    remove_1 : bool, optional
-        If True, remove 1 from the factors, by default False.
-    remove_n : bool, optional
-        If True, remove `n` from the factors, by default False.
-
-    Returns
-    -------
-    set
-        A set of all factors of the given number.
-    """
-    facs = set(
-        reduce(
-            list.__add__,
-            ([i, n // i] for i in range(1, int(n**0.5) + 1) if n % i == 0),
-        )
-    )
-    # get rid of 1 and the number itself
-    if remove_1:
-        facs.remove(1)
-    if remove_n:
-        facs.remove(n)
-    return facs  # retuned as a set
-
+from .utils import get_primes, get_factors
 
 ################################################################################
 ################################################################################
@@ -139,35 +63,53 @@ class Periods:
         # if window:
         #     data = data * np.hanning(len(data))
 
-    @staticmethod
     def project(
-        data: list[float],
+        self,
+        data: np.ndarray,
         p: int = 2,
-        trunc_to_integer_multiple: bool = False,
-        orthogonalize: bool = False,
         return_single_period: bool = False,
-    ) -> list[float]:
+    ) -> np.ndarray:
         """
         Projects the data onto a lower-dimensional space.
 
         Parameters
         ----------
-            data : list[float]
+            data : np.ndarray
                 The data to be projected.
             p : int, optional
                 The period (default is 2).
-            trunc_to_integer_multiple : bool, optional
-                Whether or not to truncate the window to fit an integer multiple of the period (default is False).
-            orthogonalize : bool, optional
-                Whether or not to orthogonalize the projections (default is False).
             return_single_period : bool, optional
                 Whether or not to return a single period (default is False).
 
         Returns
         -------
-            list[float]
+            np.ndarray
                 The projected data.
         """
+        projection = self._project(data, p)
+
+        # a faster, cleaner way to orthogonalize that is equivalent to the method
+        # presented in "Orthogonal, exactly periodic subspace decomposition" (D.D.
+        # Muresan, T.W. Parks), 2003. Setting trunc_to_integer_multiple gives a result
+        # that is almost exactly identical (within a rounding error; i.e. 1e-6).
+        # For the outputs of each to be identical, the input MUST be the same length
+        # with DC removed since the algorithm in Muresan truncates internally and
+        # here we allow the output to assume the dimensions of the input. See above
+        # line of code.
+        if self._orthogonalize:
+            for f in get_factors(p, remove_1_and_n=True):
+                if f in self.PRIMES:
+                    # remove the projection at p/prime_factor, taking care not to remove things twice.
+                    projection = projection - self._project(
+                        projection, int(p / f), False
+                    )
+
+        if return_single_period:
+            return projection[0:p]  # just a single period
+        else:
+            return projection  # the whole thing
+
+    def _project(self, data: np.ndarray, p: int) -> np.ndarray:
         cp = data.copy()
         samples_short = int(
             np.ceil(len(cp) / p) * p - len(cp)
@@ -175,7 +117,7 @@ class Periods:
         cp = np.pad(cp, (0, samples_short))  # pad it
         cp = cp.reshape(int(len(cp) / p), p)  # reshape it to a rectangle
 
-        if trunc_to_integer_multiple:
+        if self._trunc_to_integer_multiple:
             if samples_short == 0:
                 single_period = np.mean(cp, 0)  # don't need to omit the last row
             else:
@@ -193,39 +135,17 @@ class Periods:
                     divs[i] = cp.shape[0] - 1
             single_period = np.sum(cp, 0) / divs  # get the mean manually
 
-        projection = np.tile(single_period, int(data.size / p) + 1)[
+        return np.tile(single_period, int(data.size / p) + 1)[
             : len(data)
         ]  # extend the period and take the good part
 
-        # a faster, cleaner way to orthogonalize that is equivalent to the method
-        # presented in "Orthogonal, exactly periodic subspace decomposition" (D.D.
-        # Muresan, T.W. Parks), 2003. Setting trunc_to_integer_multiple gives a result
-        # that is almost exactly identical (within a rounding error; i.e. 1e-6).
-        # For the outputs of each to be identical, the input MUST be the same length
-        # with DC removed since the algorithm in Muresan truncates internally and
-        # here we allow the output to assume the dimensions of the input. See above
-        # line of code.
-        if orthogonalize:
-            for f in get_factors(p, remove_1_and_n=True):
-                if f in Periods.PRIMES:
-                    # remove the projection at p/prime_factor, taking care not to remove things twice.
-                    projection = projection - Periods.project(
-                        projection, int(p / f), trunc_to_integer_multiple, False
-                    )
-
-        if return_single_period:
-            return projection[0:p]  # just a single period
-        else:
-            return projection  # the whole thing
-
-    @staticmethod
-    def periodic_norm(x: list[float], p: int = None) -> float:
+    def periodic_norm(self, x: np.ndarray, p: int = None) -> float:
         """
         Calculates the periodic norm of the input vector.
 
         Parameters
         ----------
-            x : list[float]
+            x : np.ndarray
                 The input vector.
             p : int, optional
                 The period (default is None).
@@ -269,7 +189,7 @@ class Periods:
         data_norm = self.periodic_norm(data)
         residual = data.copy()
         if n_periods is None:
-            n_periods = math.floor(len(data) / 2)
+            n_periods =len(data) // 2
         for p in range(2, n_periods + 1):
             base = self.project(
                 residual, p, self._trunc_to_integer_multiple, self._orthogonalize
@@ -309,7 +229,7 @@ class Periods:
                 The periods, norms, and bases.
         """
         if max_length is None:
-            max_length = math.floor(len(data) / 3)
+            max_length = len(data) // 3
         periods = np.zeros(num, dtype=np.uint32)
         norms = np.zeros(num)
         bases = np.zeros((num, len(data)))
@@ -483,7 +403,7 @@ class Periods:
             warn("`Orthogonalize = True` has no effect in M-best.")
 
         if max_length is None:
-            max_length = math.floor(len(data) / 3)
+            max_length = len(data) // 3
         data_copy = data.copy()
         periods = np.zeros(num, dtype=np.uint32)
         norms = np.zeros(num)
