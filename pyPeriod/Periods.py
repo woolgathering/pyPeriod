@@ -291,7 +291,11 @@ class Periods:
         return (periods, powers, bases)
 
     def best_correlation(
-        self, data: np.ndarray, n_periods: int = 5, max_length: int = None, ratio: float = 0.01
+        self,
+        data: np.ndarray,
+        n_periods: int = 5,
+        max_length: int = None,
+        ratio: float = 0.01,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Implementation of the best correlation algorithm.
@@ -410,7 +414,11 @@ class Periods:
     """
 
     def m_best(
-        self, data: np.ndarray, n_periods: int = 5, max_length: int = None, min_length: int = 2
+        self,
+        data: np.ndarray,
+        n_periods: int = 5,
+        max_length: int = None,
+        min_length: int = 2,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Implementation of the M-best algorithm.
@@ -434,7 +442,11 @@ class Periods:
         return self._m_best_meta(data, None, n_periods, max_length, min_length)
 
     def m_best_gamma(
-        self, data: np.ndarray, n_periods: int = 5, max_length: int = None, min_length: int = 2
+        self,
+        data: np.ndarray,
+        n_periods: int = 5,
+        max_length: int = None,
+        min_length: int = 2,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Implementation of the M-best gamma algorithm.
@@ -611,6 +623,7 @@ class Periods:
 
         def fget(self):
             return self._trunc_to_integer_multiple
+
         def fset(self, value):
             self._trunc_to_integer_multiple = value
 
