@@ -82,16 +82,16 @@ The output of each algorithm are three arrays consisting of:
 periods, powers, bases = p.small_to_large(thresh=0.1)
 
 # find periodicities using the M-best algorithm
-periods, powers, bases = p.m_best(num=10)
+periods, powers, bases = p.m_best(n_periods=10)
 
 # find periodicities using the M-best gamma algorithm
-periods, powers, bases = p.m_best_gamma(num=10)
+periods, powers, bases = p.m_best_gamma(n_periods=10)
 
 # find periodicities using the best correlation algorithm
-periods, powers, bases = p.best_correlation(num=10)
+periods, powers, bases = p.best_correlation(n_periods=10)
 
 # find periodicities using the best frequency algorithm
-periods, powers, bases = p.best_frequency(win_size=None, num=10)
+periods, powers, bases = p.best_frequency(win_size=None, n_periods=10)
 ## The window size, if not provided, is the same length as the input signal. A
 ## larger window is zero-padded, a smaller window is truncated (not good).
 
@@ -106,7 +106,7 @@ p = QOPeriod() # make an instance
 
 # output is a tuple of a dictionary that contains all the information needed
 # to reconstruct the input signal
-output, residual = p.find_periods(c, num=2, thresh=0.05)
+output, residual = p.find_periods(c, n_periods=2, thresh=0.05)
 
 # get the original periods back as a tuple
 isolated_periods = period.get_periods(output['weights'], output['basis_dictionary'])
@@ -128,7 +128,7 @@ isolated_periods = period.get_periods(output['weights'], output['basis_dictionar
 ```
 
 ### Algorithms
-#### Only for Periods (i.e. Setheres and Staley (* indicates Muresan and Parks is possible))
+#### Only for Periods (i.e. Setheres and Staley (* indicates Muresan and Parks orthogonalization is possible))
 - Small-to-large*
 - M-best
 - M-best gamma

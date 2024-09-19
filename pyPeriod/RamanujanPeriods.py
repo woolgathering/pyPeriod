@@ -29,7 +29,7 @@ def get_factors(n, remove_1_and_n=False):
     facs = set(
         reduce(
             list.__add__,
-            ([i, n // i] for i in range(1, int(n ** 0.5) + 1) if n % i == 0),
+            ([i, n // i] for i in range(1, int(n**0.5) + 1) if n % i == 0),
         )
     )
     # get rid of 1 and the number itself
