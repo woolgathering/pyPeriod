@@ -79,7 +79,7 @@ def get_factors(n: int, remove_1: bool = False, remove_n: bool = False) -> set:
     # get rid of 1 and the number itself
     if remove_1:
         facs.remove(1)
-    if remove_n:
+    if remove_n and n != 1:
         facs.remove(n)
     return facs  # retuned as a set
 
@@ -106,15 +106,15 @@ class Periods:
         Calculates the periodic norm of the input vector.
     small_to_large(data, thresh=0.1, n_periods=None)
         Finds periods in the data from small to large.
-    best_correlation(data, num=5, max_length=None, ratio=0.01)
+    best_correlation(data, n_periods=5, max_length=None, ratio=0.01)
         Finds the best correlation in the data.
-    best_frequency(data, win_size=None, num=5)
+    best_frequency(data, win_size=None, n_periods=5)
         Finds the best frequency in the data.
-    m_best(data, num=5, max_length=None, min_length=2)
+    m_best(data, n_periods=5, max_length=None, min_length=2)
         Finds the M-best periods in the data.
-    m_best_gamma(data, num=5, max_length=None, min_length=2)
+    m_best_gamma(data, n_periods=5, max_length=None, min_length=2)
         Finds the M-best gamma periods in the data.
-    _m_best_meta(data, type, num=5, max_length=None, min_length=2)
+    _m_best_meta(data, type, n_periods=5, max_length=None, min_length=2)
         Helper function for m_best and m_best_gamma.
     """
 
@@ -183,7 +183,7 @@ class Periods:
                     cp[:-1], 0
                 )  # just take the mean of the truncated version and output a single period
         else:
-            ## this is equivalent to the method presented in Sethares but significantly faster
+            ## this is equivalent to the method presented in Sethares but significantly faster.
             ## do the mean manually. get the divisors from the last row since the last samples_short values will be one less than the others
             divs = np.zeros(cp.shape[1])
             for i in range(cp.shape[1]):
@@ -206,7 +206,7 @@ class Periods:
         # here we allow the output to assume the dimensions of the input. See above
         # line of code.
         if orthogonalize:
-            for f in get_factors(p, remove_1_and_n=True):
+            for f in get_factors(p, remove_1=True, remove_n=True):
                 if f in Periods.PRIMES:
                     # remove the projection at p/prime_factor, taking care not to remove things twice.
                     projection = projection - Periods.project(
@@ -244,23 +244,23 @@ class Periods:
     ### Actual period-finding algorithms
     ##############################################################################
     def small_to_large(
-        self, data: list, thresh: float = 0.1, n_periods: int = None
-    ) -> tuple[list, list, list]:
+        self, data: np.ndarray, thresh: float = 0.01, n_periods: int = None
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Implementation of the small-to-large algorithm.
 
         Parameters
         ----------
-            data : list
+            data : np.ndarray
                 The data to findperiods in.
             thresh : float, optional
-                The threshold (default is 0.1).
+                The threshold (default is 0.01).
             n_periods : int, optional
-                The number of periods (default is None).
+                The number of periods (defaults to len(data)//2).
 
         Returns
         -------
-            tuple[list, list, list]
+            tuple[np.ndarray, np.ndarray, np.ndarray]
                 The periods, powers, and bases. All items in the lists correspond by index. The periods and powers list are both the length of the number of periods found in the data. The bases is a list of lists where the first dimension is the number of periods found and each base at index `i` is a list of period `period[i]` with power `power[i]` and is the same length as the input data.
         """
         periods = []
@@ -269,7 +269,7 @@ class Periods:
         data_norm = self.periodic_norm(data)
         residual = data.copy()
         if n_periods is None:
-            n_periods = math.floor(len(data) / 2)
+            n_periods = len(data) // 2
         for p in range(2, n_periods + 1):
             base = self.project(
                 residual, p, self._trunc_to_integer_multiple, self._orthogonalize
@@ -284,19 +284,23 @@ class Periods:
                 periods.append(p)
                 powers.append(imposed_norm)
                 bases.append(base)
+
+        periods = np.array(periods)
+        powers = np.array(powers)
+        bases = np.array(bases)
         return (periods, powers, bases)
 
     def best_correlation(
-        self, data: list, num: int = 5, max_length: int = None, ratio: float = 0.01
-    ) -> tuple[list, list, list]:
+        self, data: np.ndarray, n_periods: int = 5, max_length: int = None, ratio: float = 0.01
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Implementation of the best correlation algorithm.
 
         Parameters
         ----------
-            data : list
+            data : np.ndarray
                 The data to find the best correlation in.
-            num : int, optional
+            n_periods : int, optional
                 The number of correlations (default is 5).
             max_length : int, optional
                 The maximum length (default is None).
@@ -305,19 +309,19 @@ class Periods:
 
         Returns
         -------
-            tuple[list, list, list]
+            tuple[np.ndarray, np.ndarray, np.ndarray]
                 The periods, norms, and bases.
         """
         if max_length is None:
-            max_length = math.floor(len(data) / 3)
-        periods = np.zeros(num, dtype=np.uint32)
-        norms = np.zeros(num)
-        bases = np.zeros((num, len(data)))
+            max_length = len(data) // 3
+        periods = np.zeros(n_periods, dtype=np.int32)
+        norms = np.zeros(n_periods, dtype=np.float64)
+        bases = np.zeros((n_periods, len(data)), dtype=np.float64)
         og_norm = self.periodic_norm(data)  # original gangsta norm
         old_norm = og_norm
         data_copy = data.copy()
 
-        for i in range(num):
+        for i in range(n_periods):
             # check correlation
             max_cor = 0
             max_period = None
@@ -325,7 +329,7 @@ class Periods:
                 # p is the period
                 cor = 0
                 for s in range(0, p):
-                    cor = abs(sum(data_copy[s::p]))
+                    cor = np.abs(np.sum(data_copy[s::p]))
                     if cor > max_cor:
                         max_cor = cor
                         max_period = p
@@ -349,23 +353,23 @@ class Periods:
         return (periods, norms, bases)
 
     def best_frequency(
-        self, data: list, win_size: int = None, num: int = 5
-    ) -> tuple[list, list, list]:
+        self, data: np.ndarray, win_size: int = None, n_periods: int = 5
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Implementation of the best frequency algorithm.
 
         Parameters
         ----------
-            data : list
+            data : np.ndarray
                 The data to find the best frequency in.
             win_size : int, optional
                 The window size (default is None: i.e. the length of the).
-            num : int, optional
+            n_periods : int, optional
                 The number of frequencies (default is 5).
 
         Returns
         -------
-            tuple[list, list, list]
+            tuple[np.ndarray, np.ndarray, np.ndarray]
                 The periods, powers, and bases. All items in the lists correspond by index. The periods and powers list are both the length of the number of periods found in the data. The bases is a list of lists where the first dimension is the number of periods found and each base at index `i` is a list of period `period[i]` with power `power[i]` and is the same length as the input data.
         """
         if win_size is None:
@@ -375,12 +379,12 @@ class Periods:
                 "win_size is smaller than the input signal length. It will be truncated and information will be lost."
             )
 
-        periods = np.zeros(num, dtype=np.uint32)
-        norms = np.zeros(num)
-        bases = np.zeros((num, len(data)))
+        periods = np.zeros(n_periods, dtype=np.uint32)
+        norms = np.zeros(n_periods)
+        bases = np.zeros((n_periods, len(data)))
         data_copy = data.copy()
 
-        for i in range(num):
+        for i in range(n_periods):
             mags = np.abs(
                 np.fft.rfft(data_copy, win_size)
             )  # we only need the magnitude of the positive freqs
@@ -406,16 +410,16 @@ class Periods:
     """
 
     def m_best(
-        self, data: list, num: int = 5, max_length: int = None, min_length: int = 2
-    ) -> tuple[list, list, list]:
+        self, data: np.ndarray, n_periods: int = 5, max_length: int = None, min_length: int = 2
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Implementation of the M-best algorithm.
 
         Parameters
         ----------
-            data : list
+            data : np.ndarray
                 The data to find the M-best periods in.
-            num : int, optional
+            n_periods : int, optional
                 The number of periods (default is 5).
             max_length : int, optional
                 The maximum length (default is None).
@@ -424,22 +428,22 @@ class Periods:
 
         Returns
         -------
-            tuple[list, list, list]
+            tuple[np.ndarray, np.ndarray, np.ndarray]
                 The periods, powers, and bases. All items in the lists correspond by index. The periods and powers list are both the length of the number of periods found in the data. The bases is a list of lists where the first dimension is the number of periods found and each base at index `i` is a list of period `period[i]` with power `power[i]` and is the same length as the input data.
         """
-        return self._m_best_meta(data, None, num, max_length, min_length)
+        return self._m_best_meta(data, None, n_periods, max_length, min_length)
 
     def m_best_gamma(
-        self, data: list, num: int = 5, max_length: int = None, min_length: int = 2
-    ) -> tuple[list, list, list]:
+        self, data: np.ndarray, n_periods: int = 5, max_length: int = None, min_length: int = 2
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Implementation of the M-best gamma algorithm.
 
         Parameters
         ----------
-            data : list
+            data : np.ndarray
                 The data to find the M-best gamma periods in.
-            num : int, optional
+            n_periods : int, optional
                 The number of periods (default is 5).
             max_length : int, optional
                 The maximum length (default is None).
@@ -448,24 +452,24 @@ class Periods:
 
         Returns
         -------
-            tuple[list, list, list]
+            tuple[np.ndarray, np.ndarray, np.ndarray]
                 The periods, powers, and bases. All items in the lists correspond by index. The periods and powers list are both the length of the number of periods found in the data. The bases is a list of lists where the first dimension is the number of periods found and each base at index `i` is a list of period `period[i]` with power `power[i]` and is the same length as the input data.
         """
-        return self._m_best_meta(data, "gamma", num, max_length, min_length)
+        return self._m_best_meta(data, "gamma", n_periods, max_length, min_length)
 
     def _m_best_meta(
-        self, data: list, type, num=5, max_length=None, min_length=2
-    ) -> tuple[list, list, list]:
+        self, data: np.ndarray, type, n_periods=5, max_length=None, min_length=2
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Helper function for m_best and m_best_gamma. Should not be called directly by the user.
 
         Parameters
         ----------
-            data : list
+            data : np.ndarray
                 The data to find the M-best periods in.
             type : str
                 The type of M-best to find.
-            num : int, optional
+            n_periods : int, optional
                 The number of periods (default is 5).
             max_length : int, optional
                 The maximum length (default is None).
@@ -474,7 +478,7 @@ class Periods:
 
         Returns
         -------
-            tuple[list, list, list]
+            tuple[np.ndarray, np.ndarray, np.ndarray]
                 The periods, powers, and bases. All items in the lists correspond by index. The periods and powers list are both the length of the number of periods found in the data. The bases is a list of lists where the first dimension is the number of periods found and each base at index `i` is a list of period `period[i]` with power `power[i]` and is the same length as the input data.
         """
 
@@ -483,24 +487,22 @@ class Periods:
             warn("`Orthogonalize = True` has no effect in M-best.")
 
         if max_length is None:
-            max_length = math.floor(len(data) / 3)
+            max_length = len(data) // 3
         data_copy = data.copy()
-        periods = np.zeros(num, dtype=np.uint32)
-        norms = np.zeros(num)
-        bases = np.zeros((num, len(data)))
+        periods = np.zeros(n_periods, dtype=np.uint32)
+        norms = np.zeros(n_periods, dtype=np.float64)
+        bases = np.zeros((n_periods, len(data)), dtype=np.float64)
         skip_periods = []  # skip periods that continue to show up and slow things down
 
         # step 1
         i = 0
         iters = 0
-        while i < num:
+        while i < n_periods:
             max_norm = 0
             max_period = 0
             max_base = None
             # print ('Number {}'.format(i))
             for p in range(min_length, max_length + 1):
-                # base = self.project(data_copy, p,
-                #                     self._trunc_to_integer_multiple, False)
                 base = self.project(
                     data_copy, p, self._trunc_to_integer_multiple, self._orthogonalize
                 )
@@ -540,12 +542,12 @@ class Periods:
         changed = True
         while changed:
             i = 0
-            while i < num:
+            while i < n_periods:
                 changed = False
                 max_norm = 0
                 max_period = None
                 max_base = None
-                facs = get_factors(periods[i], remove_1_and_n=True)
+                facs = get_factors(periods[i], remove_1=True, remove_n=True)
                 for f in facs:
                     base = self.project(
                         bases[i],
@@ -572,7 +574,7 @@ class Periods:
                         nq = self.periodic_norm(base, p)
                     min_q = min(norms)
                     if (
-                        (nq + nQ) > (norms[num - 1] + norms[i])
+                        (nq + nQ) > (norms[n_periods - 1] + norms[i])
                         and (nq > min_q)
                         and (nQ > min_q)
                     ):
@@ -589,9 +591,9 @@ class Periods:
                         periods = np.insert(periods, i, max_period)
 
                         # remove the last (weakest) basis vector
-                        bases = bases[:num]
-                        norms = norms[:num]
-                        periods = periods[:num]
+                        bases = bases[:n_periods]
+                        norms = norms[:n_periods]
+                        periods = periods[:n_periods]
                     else:
                         i += 1
                 else:
@@ -608,10 +610,9 @@ class Periods:
       multiple of the period"
 
         def fget(self):
-            return self._trunc_to_integer_multiple, self._orthogonalize
-
+            return self._trunc_to_integer_multiple
         def fset(self, value):
-            self._trunc_to_integer_multiple, self._orthogonalize = value
+            self._trunc_to_integer_multiple = value
 
         return locals()
 
