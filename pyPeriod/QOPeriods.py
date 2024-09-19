@@ -6,155 +6,27 @@
 
 import numpy as np
 from .Periods import Periods
-from functools import reduce
+from typing import Optional, Tuple, Dict
 import itertools
-import random
 from scipy import linalg as spla
 import warnings
+from .utils import phi, get_factors, rms, flatten, reduce_rows, get_primes
 
 
-def phi(n: int) -> int:
-    """
-    Compute Euler's totient function.
-
-    Euler's totient function, denoted φ(n), counts the positive integers up to a given integer n that are relatively prime to n. In other words, it is the number of integers k in the range 1 ≤ k ≤ n for which the greatest common divisor gcd(n, k) is equal to 1.
-
-    Parameters
-    ----------
-    n : int
-        The input integer for which the totient function is to be calculated.
-
-    Returns
-    -------
-    int
-        The value of Euler's totient function for the input integer.
-
-    Examples
-    --------
-    >>> phi(9)
-    6
-    >>> phi(10)
-    4
-    """
-    amount = 0
-    for k in range(1, n + 1):
-        if np.gcd(n, k) == 1:
-            amount += 1
-    return amount
-
-
-def get_factors(n: int, remove_1: bool = False, remove_n: bool = False) -> set:
-    """
-    Get all factors of a given number.
-
-    Parameters
-    ----------
-    n : int
-        The number to factor.
-    remove_1 : bool, optional
-        If True, remove 1 from the factors, by default False.
-    remove_n : bool, optional
-        If True, remove `n` from the factors, by default False.
-
-    Returns
-    -------
-    set
-        A set of all factors of the given number.
-    """
-    facs = set(
-        reduce(
-            list.__add__,
-            ([i, n // i] for i in range(1, int(n**0.5) + 1) if n % i == 0),
-        )
-    )
-    # get rid of 1 and the number itself
-    if remove_1:
-        facs.remove(1)
-    if remove_n and n != 1:
-        facs.remove(n)
-    return facs  # retuned as a set
-
-
-def rms(x: list) -> float:
-    return np.sqrt(np.sum(np.power(x, 2)) / len(x))
-
-
-def flatten(t: list) -> list:
-    return [item for sublist in t for item in sublist]
-
-
-def reduce_rows(A: Any) -> Any:
-    AA = A[0]
-    rank = np.linalg.matrix_rank(AA)  # should be 1
-    for row in A[1:]:
-        aa = np.vstack((AA, row))
-        if np.linalg.matrix_rank(aa) > int(rank):
-            AA = aa
-            rank = np.linalg.matrix_rank(aa)
-    return AA
-
-
-def get_primes(max: int = 1000000) -> list[int]:
-    """
-    Generate all prime numbers up to a given maximum. Resulting array does not include 1.
-
-    Parameters
-    ----------
-    max : int, optional
-        The maximum number up to which to generate primes, by default 1000000.
-
-    Returns
-    -------
-    array_like
-        An array of all prime numbers up to the given maximum.
-    """
-    primes = np.arange(3, max + 1, 2)
-    isprime = np.ones((max - 1) // 2, dtype=bool)
-    for factor in primes[: int(np.sqrt(max))]:
-        if isprime[(factor - 2) // 2]:
-            isprime[(factor * 3 - 2) // 2 :: factor] = 0
-    return np.insert(primes[isprime], 0, 2)
-
-
-def normalize(x: list, level: int = 1) -> np.ndarray[float]:
-    """
-    Normalize a list of numerical values. This function scales the input list so that its maximum absolute value is equal to the specified level.
-
-    Parameters
-    ----------
-    x : list
-        The list of numerical values to be normalized.
-
-    level : int, optional
-        The desired maximum absolute value for the normalized list. The default is 1.
-
-    Returns
-    -------
-    list
-        The normalized list of numerical values, scaled such that the maximum absolute value is equal to the specified level.
-
-    Examples
-    --------
-    >>> normalize([1, 2, 3, 4, 5])
-    [0.2, 0.4, 0.6, 0.8, 1.0]
-
-    >>> normalize([-1, 0, 1], level=10)
-    [-10, 0, 10]
-    """
-    m = np.max(np.abs(x))
-    return (x / m) * level
-
-
-class QOPeriods:
+class QOPeriods(Periods):
     PRIMES = set(
         get_primes(10000)
     )  # a class variable to hold a set of primes (does not include 1)
 
     def __init__(
-        self, basis_type="natural", trunc_to_integer_multiple=False, orthogonalize=False
+        self,
+        basis_type: str = "natural",
+        trunc_to_integer_multiple: bool = False,
+        orthogonalize: bool = False,
+        **kwargs,
     ):
         """
-        Initializes a Periods object.
+        Initializes a QOPeriods object.
 
         Parameters
         ----------
@@ -187,139 +59,31 @@ class QOPeriods:
             Placeholder for storing the container.
 
         """
-        super(Periods, self).__init__(trunc_to_integer_multiple, orthogonalize)
+        super().__init__(trunc_to_integer_multiple, orthogonalize)
         self._output = None
         self._basis_type = basis_type
         self._verbose = False
         self._k = 0
         self._window = False
+        self._quadprog = kwargs.get("quadprog", "solve")
 
         # for the test function
         self._output_bases = None
         self._container = []
-
-    # @staticmethod
-    # def project(
-    #     data,
-    #     p=2,
-    #     trunc_to_integer_multiple=False,
-    #     orthogonalize=False,
-    #     return_single_period=False,
-    # ):
-    #     """
-    #     Project a signal onto its periodic components.
-
-    #     Parameters
-    #     ----------
-    #     data : ndarray
-    #         Input signal to be projected
-    #     p : int, optional
-    #         The period of the signal, default is 2
-    #     trunc_to_integer_multiple : bool, optional
-    #         Flag to indicate if the signal is truncated to an integer multiple of the period, default is False
-    #     orthogonalize : bool, optional
-    #         Flag to indicate if the projection is orthogonalized, default is False
-    #     return_single_period : bool, optional
-    #         Flag to indicate if the single period projection is returned, default is False
-
-    #     Returns
-    #     -------
-    #     projection : ndarray
-    #         The projected signal
-
-    #     Notes
-    #     -----
-    #     This function computes the periodic components of the input signal using the method presented in "Orthogonal,
-    #     exactly periodic subspace decomposition" (D.D. Muresan, T.W. Parks), 2003. If the input is not truncated to an
-    #     integer multiple of the period, a faster but equivalent method is used to compute the periodic components.
-    #     If the orthogonalize flag is set to True, the projection is orthogonalized using the same method.
-    #     """
-
-    #     cp = data.copy()
-    #     samples_short = int(
-    #         np.ceil(len(cp) / p) * p - len(cp)
-    #     )  # calc how many samples short for rectangle
-    #     cp = np.pad(cp, (0, samples_short))  # pad it
-    #     cp = cp.reshape(int(len(cp) / p), p)  # reshape it to a rectangle
-
-    #     if trunc_to_integer_multiple:
-    #         if samples_short == 0:
-    #             single_period = np.mean(cp, 0)  # don't need to omit the last row
-    #         else:
-    #             single_period = np.mean(
-    #                 cp[:-1], 0
-    #             )  # just take the mean of the truncated version and output a single period
-    #     else:
-    #         ## this is equivalent to the method presented in the paper but significantly faster ##
-    #         # do the mean manually. get the divisors from the last row since the last samples_short values will be one less than the others
-    #         divs = np.zeros(cp.shape[1])
-    #         for i in range(cp.shape[1]):
-    #             if i < (cp.shape[1] - samples_short):
-    #                 divs[i] = cp.shape[0]
-    #             else:
-    #                 divs[i] = cp.shape[0] - 1
-    #         single_period = np.sum(cp, 0) / divs  # get the mean manually
-
-    #     projection = np.tile(single_period, int(data.size / p) + 1)[
-    #         : len(data)
-    #     ]  # extend the period and take the good part
-
-    #     # a faster, cleaner way to orthogonalize that is equivalent to the method
-    #     # presented in "Orthogonal, exactly periodic subspace decomposition" (D.D.
-    #     # Muresan, T.W. Parks), 2003. Setting trunc_to_integer_multiple gives a result
-    #     # that is almost exactly identical (within a rounding error; i.e. 1e-6).
-    #     # For the outputs of each to be identical, the input MUST be the same length
-    #     # with DC removed since the algorithm in Muresan truncates internally and
-    #     # here we allow the output to assume the dimensions of the input. See above
-    #     # line of code.
-    #     if orthogonalize:
-    #         for f in get_factors(p, remove_1_and_n=True):
-    #             if f in QOPeriods.PRIMES:
-    #                 # remove the projection at p/prime_factor, taking care not to remove things twice.
-    #                 projection = projection - QOPeriods.project(
-    #                     projection, int(p / f), trunc_to_integer_multiple, False
-    #                 )
-
-    #     if return_single_period:
-    #         return projection[0:p]  # just a single period
-    #     else:
-    #         return projection  # the whole thing
-
-    # @staticmethod
-    # def periodic_norm(x, p=None):
-    #     """
-    #     Calculate the periodic norm of a vector.
-
-    #     Parameters
-    #     ----------
-    #     x : array_like
-    #         Input vector.
-    #     p : int, optional
-    #         Period of the signal. If specified, the result is normalized by `sqrt(p)`.
-
-    #     Returns
-    #     -------
-    #     float
-    #         The periodic norm of `x`. If `p` is specified, the result is normalized by `sqrt(p)`.
-    #     """
-    #     if p:
-    #         return (np.linalg.norm(x) / np.sqrt(len(x))) / np.sqrt(p)
-    #     else:
-    #         return np.linalg.norm(x) / np.sqrt(len(x))
 
     ################################################################################
     ### Detection ##################################################################
     ################################################################################
     def find_periods(
         self,
-        data,
-        num=None,
-        thresh=None,
-        min_length=2,
-        max_length=None,
-        update_weights=True,
-        **kwargs,  # test_function=None, thresh=None
-    ):
+        data: np.ndarray,
+        n_periods: Optional[int] = None,
+        thresh: Optional[float] = 0.01,
+        min_length: int = 2,
+        max_length: Optional[int] = None,
+        update_weights: bool = True,
+        **kwargs,
+    ) -> Tuple[Dict, np.ndarray, np.ndarray]:
         """
         Use quadratic optimization to find the best periods in a signal.
 
@@ -331,7 +95,7 @@ class QOPeriods:
         ----------
         data : np.ndarray
             The input signal as a 1-D array.
-        num : int, optional
+        n_periods : int, optional
             The maximum number of periods to find. If not provided, it will be set to the length of the signal.
         thresh : float, optional
             The threshold on the root mean square of the residual to stop the iterative process. It is used when no custom test function is provided.
@@ -348,11 +112,12 @@ class QOPeriods:
         -------
         tuple
             - output_bases (dict): A dictionary containing the found periods, their norms, the basis subspaces used to represent the signal, the weights for the basis subspaces, and a dictionary describing the construction of the basis subspaces.
-            - res (np.ndarray): The final residual of the signal after subtracting the reconstruction using the found periods.
+            - reconstruction (np.ndarray): The reconstruction of the signal using the found periods.
+            - res (np.ndarray): The final residual of the signal after subtracting the reconstruction.
 
         Notes
         -----
-        In each iteration, the function uses the method of orthogonalizing the projection to find the best period. This involves projecting the residual onto the subspace spanned by the period and then orthogonalizing the projection. The period that gives the maximum norm of the orthogonalized projection is chosen as the best period. This process repeats until the number of periods equals `num` or the test function returns `False`.
+        In each iteration, the function uses the method of orthogonalizing the projection to find the best period. This involves projecting the residual onto the subspace spanned by the period and then orthogonalizing the projection. The period that gives the maximum norm of the orthogonalized projection is chosen as the best period. This process repeats until the number of periods equals `n_periods` or the test function returns `False`.
 
         The function also handles the case where the signal is virtually empty (i.e., its absolute sum is less than or equal to 1e-16). In this case, it returns a dictionary with period 1, norm 0, a subspace of ones, and weight 0, and a residual of zeros.
 
@@ -372,13 +137,12 @@ class QOPeriods:
 
         N = len(data)
         if max_length is None:
-            max_length = int(np.floor(N / 3))
-        if num is None:
-            num = N  # way too many but whatever
-        periods = np.zeros(num, dtype=np.uint32)  # initialize
+            max_length = N // 3  # set the max length to 1/3 of the signal length
+        if n_periods is None:
+            n_periods = N  # way too many but whatever
+        periods = np.zeros(n_periods, dtype=np.uint32)  # initialize
         possible_periods = np.arange(min_length, max_length + 1)
-        norms = np.zeros(num)  # initialize
-        bases = np.zeros((num, N))  # initialize
+        norms = np.zeros(n_periods)  # initialize
         res = data.copy()  # copy
         output_weights = np.array([])
         basis_matricies = np.empty((0, N))
@@ -414,7 +178,7 @@ class QOPeriods:
                 "basis_dictionary": {},
             }
 
-        for i in range(num):  # loop over the number of periods to find
+        for i in range(n_periods):  # loop over the number of periods to find
             if i == 0 or test_function(
                 self, data, reconstruction
             ):  # if the test function returns True (i.e. continue)
@@ -440,9 +204,12 @@ class QOPeriods:
                             print("Best period here: {}".format(best_p))
                         if best_p < 1:
                             break  # stop if the best period is 0
-                        # best_base = self.project(
-                        #     data=res, p=best_p, trunc_to_integer_multiple=self._trunc_to_integer_multiple, orthogonalize=True
-                        # ) # project out best_p from res, orthogonalize it, and return it
+                        best_base = self.project(
+                            data=res,
+                            p=best_p,
+                            trunc_to_integer_multiple=self._trunc_to_integer_multiple,
+                            orthogonalize=True,
+                        )  # project out best_p from res, orthogonalize it, and return it
                         best_norm = self.periodic_norm(
                             best_base, best_p
                         )  # get the norm of the orthogonalized projection
@@ -461,9 +228,9 @@ class QOPeriods:
                             print("Best period here: {}".format(best_p))
                         if best_p < 1:
                             break
-                        # best_base = self.project(
-                        #     res, best_p, self._trunc_to_integer_multiple, True
-                        # )  # always orthogonalize
+                        best_base = self.project(
+                            res, best_p, self._trunc_to_integer_multiple, True
+                        )  # always orthogonalize
                         best_norm = self.periodic_norm(best_base, best_p)
                 else:
                     # find the best period by just plain projected
@@ -475,7 +242,7 @@ class QOPeriods:
                         if this_norm > best_norm:
                             best_p = p
                             best_norm = this_norm
-                            # best_base = this_base
+                            best_base = this_base
 
                 # now that we've found the strongest period in this run, remember it, its norm, and the projection
                 periods[i] = best_p
@@ -485,7 +252,6 @@ class QOPeriods:
                     print(f"New period: {best_p}")
 
                 nonzero_periods = periods[periods > 0]  # periods that are not 0
-                print(nonzero_periods)
                 # tup = self.compute_reconstruction(data, nonzero_periods, window)
                 #
                 # # this means that a singular matrix was encountered. Stop here.
@@ -593,7 +359,7 @@ class QOPeriods:
                 self._output_bases = output_bases  # remember the output bases
                 break  # test_function returned False. Exit.
 
-        return (output_bases, res)
+        return (output_bases, reconstruction, res)
 
     def _update_weights(
         self, data: np.ndarray, N: int, nonzero_periods: np.ndarray
@@ -601,10 +367,10 @@ class QOPeriods:
         """
         Update the weights for the given data and periods.
 
-        This function takes the input data, the number of data points, and a list of 
-        non-zero periods, and computes the optimal weights for representing the data 
-        using the basis subspaces corresponding to the periods. It returns the basis 
-        matrices, a dictionary describing the structure of the basis matrices, the 
+        This function takes the input data, the number of data points, and a list of
+        non-zero periods, and computes the optimal weights for representing the data
+        using the basis subspaces corresponding to the periods. It returns the basis
+        matrices, a dictionary describing the structure of the basis matrices, the
         weights, and the reconstruction of the data using these weights.
 
         Parameters
@@ -619,13 +385,13 @@ class QOPeriods:
         Returns
         -------
         tuple
-            - basis_matrices (np.ndarray): A 2-D array where each row is a basis 
+            - basis_matrices (np.ndarray): A 2-D array where each row is a basis
             subspace corresponding to a period.
-            - basis_dictionary (dict): A dictionary with periods as keys and the 
+            - basis_dictionary (dict): A dictionary with periods as keys and the
             number of rows for each period as values.
-            - output_weights (np.ndarray): A 1-D array of weights for representing 
+            - output_weights (np.ndarray): A 1-D array of weights for representing
             the data using the basis subspaces.
-            - reconstruction (np.ndarray): A 1-D array of the reconstruction of the 
+            - reconstruction (np.ndarray): A 1-D array of the reconstruction of the
             data using the weights and basis subspaces.
         """
         basis_matricies, basis_dictionary = self.get_subspaces(
@@ -638,7 +404,7 @@ class QOPeriods:
         """
 
         output_weights, reconstruction = self.solve_quadratic(
-            data, basis_matricies, window=self.window
+            data, basis_matricies, window=self.window, type=self._quadprog
         )  # get the new reconstruction and do it again
         return (basis_matricies, basis_dictionary, output_weights, reconstruction)
 
@@ -654,9 +420,9 @@ class QOPeriods:
         """
         Find the weights for the given data while adding `nonzero_periods[-1]` without updating existing weights.
 
-        This function is similar to the `_update_weights` method, but it does not update 
-        the weights for the existing periods. Instead, it only computes the weights for the 
-        new period (the last one in `nonzero_periods`). It then updates the basis matrices, 
+        This function is similar to the `_update_weights` method, but it does not update
+        the weights for the existing periods. Instead, it only computes the weights for the
+        new period (the last one in `nonzero_periods`). It then updates the basis matrices,
         the basis dictionary, and the weights with the new period's information.
 
         Parameters
@@ -677,42 +443,41 @@ class QOPeriods:
         Returns
         -------
         tuple
-            - basis_matrices (np.ndarray): The updated 2-D array where each row is a basis 
+            - basis_matrices (np.ndarray): The updated 2-D array where each row is a basis
             subspace corresponding to a period.
-            - basis_dictionary (dict): The updated dictionary with periods as keys and the 
+            - basis_dictionary (dict): The updated dictionary with periods as keys and the
             number of rows for each period as values.
-            - output_weights (np.ndarray): The updated 1-D array of weights for representing 
+            - output_weights (np.ndarray): The updated 1-D array of weights for representing
             the data using the basis subspaces.
-            - reconstruction (np.ndarray): A 1-D array of the reconstruction of the 
+            - reconstruction (np.ndarray): A 1-D array of the reconstruction of the
             data using the updated weights and basis subspaces.
         """
         keep = nonzero_periods[-1]
         factors = get_factors(nonzero_periods[-1], remove_1=False, remove_n=False)
         factors_existing = set()
         for p in nonzero_periods[:-1]:
-            print(p)
             factors_existing = factors_existing.union(
                 get_factors(p, remove_1=False, remove_n=False)
             )
 
         for f in sorted(list(factors_existing.intersection(factors))):
             keep -= phi(f)
-            print(
-                "period: {}, keep: {}, thisFactor: {}".format(
-                    nonzero_periods[-1], keep, f
-                )
-            )
+            # print(
+            #     "period: {}, keep: {}, thisFactor: {}".format(
+            #         nonzero_periods[-1], keep, f
+            #     )
+            # )
         basis_matrix = self.Pp(nonzero_periods[-1], N, keep=keep)
 
         weights, reconstruction = self.solve_quadratic(
-            data, basis_matrix, window=self.window
+            data, basis_matrix, window=self.window, type=self._quadprog
         )
         basis_dictionary.update({str(nonzero_periods[-1]): keep})
         basis_matricies = np.vstack((basis_matricies, basis_matrix))
         output_weights = np.concatenate((output_weights, weights))
 
         return (basis_matricies, basis_dictionary, output_weights, reconstruction)
-    
+
     ################################################################################
     ### Extraction #################################################################
     ################################################################################
@@ -723,15 +488,23 @@ class QOPeriods:
 
         if decomp_type == "row reduction":
             A = reduce_rows(A)  # ought not to introduce truncation erros with integers
-            coeffs, reconstructed = self.solve_quadratic(concatenated_periods, A, self._k, type="solve")
+            coeffs, reconstructed = self.solve_quadratic(
+                concatenated_periods, A, k=self._k, type="solve"
+            )
         elif decomp_type == "lu":
             PL, U = spla.lu(A, permute_l=True)
-            coeffs, reconstructed = self.solve_quadratic(concatenated_periods, U, self._k, type="solve")
+            coeffs, reconstructed = self.solve_quadratic(
+                concatenated_periods, U, k=self._k, type="solve"
+            )
         elif decomp_type == "qr":
             Q, R = np.linalg.qr(A, mode="complete")
-            coeffs, reconstructed = self.solve_quadratic(concatenated_periods, R, self._k, type="solve")
+            coeffs, reconstructed = self.solve_quadratic(
+                concatenated_periods, R, k=self._k, type="solve"
+            )
         else:
-            coeffs, reconstructed = self.solve_quadratic(concatenated_periods, A, self._k, type="lstsq")
+            coeffs, reconstructed = self.solve_quadratic(
+                concatenated_periods, A, k=self._k, type="lstsq"
+            )
 
         actual_concatenated_periods = concatenated_periods - reconstructed
         actual_periods = []
@@ -777,7 +550,7 @@ class QOPeriods:
         The method first calculates the covariance matrix A' = A*A^T and the vector W = Ax. It then solves the equation A'x = W using the specified method. If the method is not recognized, it defaults to least squares solving.
         """
         #### windowing
-        if (window is None) or (window is False):
+        if not window:
             A_prime = np.matmul(A, A.T)  # multiply by its transpose (covariance)
             W = np.matmul(A, x)  # multiply by the data
         else:
@@ -788,7 +561,7 @@ class QOPeriods:
         ####
 
         ## Regularization ## if doing this, don't drop rows from A, keep them all
-        # A_prime = A_prime + (k * np.sum(np.power(x, 2)) * np.identity(A_prime.shape[0]))
+        A_prime = A_prime + (k * np.sum(np.power(x, 2)) * np.identity(A_prime.shape[0]))
 
         if type == "solve":
             output = np.linalg.solve(A_prime, W)  # actually solve it
@@ -806,7 +579,7 @@ class QOPeriods:
 
     def get_subspaces(self, Q: set, N: int) -> tuple:
         """
-        Get the stacked subspaces for all periods in Q. This method only keeps the rows required to reconstruct the signal and nothing more.
+        Get the stacked subspaces for all periods in Q. This method only keeps the rows required to reconstruct the signal and nothing more. Example: Q = {8, 12, 15}. The subspaces for 8, 12, and 15 are stacked, keeping the rows for each subspace that are unique to that subspace, inclusive of common factors. Common factors are held in the subspace which appears first in Q: for instance, the 2- and 4-spaces appear in the 8-space but not in the 12-space. The remaining rows are discarded. The number of rows retained for each period is then stored in a dictionary.
 
         Parameters
         ----------
@@ -852,28 +625,28 @@ class QOPeriods:
         return (A, d)
 
     @staticmethod
-    def concatenate_periods(weights:list, dictionary:dict):
+    def concatenate_periods(weights: list, dictionary: dict):
         """
         Concatenate periods into a single vector.
 
-        This function takes a list of weights and a dictionary that describes the 
-        structure of the weights and concatenates them into a single vector. The 
-        dictionary should have periods as keys and the number of weights for each 
+        This function takes a list of weights and a dictionary that describes the
+        structure of the weights and concatenates them into a single vector. The
+        dictionary should have periods as keys and the number of weights for each
         period as values.
 
         Parameters
         ----------
         weights : list
-            List of weights. The order of the weights should correspond to the 
+            List of weights. The order of the weights should correspond to the
             order of the periods in the dictionary.
         dictionary : dict
-            Dictionary with periods as keys and the number of weights for each 
+            Dictionary with periods as keys and the number of weights for each
             period as values.
 
         Returns
         -------
         np.ndarray
-            A 1-D array of weights, concatenated according to the structure 
+            A 1-D array of weights, concatenated according to the structure
             described by the dictionary.
         """
         read_idx = 0
@@ -890,10 +663,10 @@ class QOPeriods:
         """
         Stack pairwise greatest common divisor (GCD) subspaces.
 
-        This function takes a list of periods and creates a matrix where each row 
-        is a subspace that corresponds to the GCD of a pair of periods. The subspaces 
-        are created by taking the GCD of each pair of periods, creating a vector of 
-        length equal to the period with the GCD at the corresponding indices, and 
+        This function takes a list of periods and creates a matrix where each row
+        is a subspace that corresponds to the GCD of a pair of periods. The subspaces
+        are created by taking the GCD of each pair of periods, creating a vector of
+        length equal to the period with the GCD at the corresponding indices, and
         then stacking these vectors to form the matrix.
 
         Parameters
@@ -904,9 +677,9 @@ class QOPeriods:
         Returns
         -------
         np.ndarray
-            A 2-D array where each row is a subspace that corresponds to the GCD 
-            of a pair of periods. The number of rows is equal to the number of 
-            pairs of periods, and the number of columns is equal to the sum of the 
+            A 2-D array where each row is a subspace that corresponds to the GCD
+            of a pair of periods. The number of rows is equal to the number of
+            pairs of periods, and the number of columns is equal to the sum of the
             periods.
         """
         subspace = []
@@ -938,7 +711,7 @@ class QOPeriods:
             return np.ones((1, 1))  # no need to redistribute
 
     @staticmethod
-    def Pp(p:int, N:int=1, keep:int=None, type:str="natural") -> np.ndarray:
+    def Pp(p: int, N: int = 1, keep: int = None, type: str = "natural") -> np.ndarray:
         """
         Generate a matrix of subspaces using the specified basis vector.
 
@@ -962,7 +735,7 @@ class QOPeriods:
         -----
         The function first determines the number of times to repeat the basis vector based on the specified number of columns N. It then generates a matrix where each row is a basis vector. The type of basis vector used is determined by the 'type' parameter. If the 'keep' parameter is specified, the output matrix is truncated to this number of rows.
         """
-        repetitions = int(np.ceil(N / p)) # (N // p) + 1
+        repetitions = int(np.ceil(N / p))  # (N // p) + 1
         matrix = np.zeros((p, int(N)))
         for i in range(p):
             if type == "natural":
@@ -974,7 +747,7 @@ class QOPeriods:
         return matrix
 
     @staticmethod
-    def Pp_column(p:int, s:int, repetitions:int=1):
+    def Pp_column(p: int, s: int, repetitions: int = 1):
         """
         Generate a natural basis periodic vector (i.e. [1, 0, 0, 0, 1, 0, 0, 0, 1, ...]])
 
@@ -1003,13 +776,13 @@ class QOPeriods:
         return np.tile(vec, repetitions)
 
     @staticmethod
-    def Cq(q:int, s:int, repetitions:int=1, type:str="real"):
+    def Cq(q: int, s: int, repetitions: int = 1, type: str = "real"):
         """
         Compute a Ramanujan periodic matrix.
 
-        This function creates a Ramanujan periodic matrix, which is a matrix that has 
-        the property that its rows are periodic with period q. The elements of the matrix 
-        are complex numbers that are calculated using the Ramanujan sum, which is a 
+        This function creates a Ramanujan periodic matrix, which is a matrix that has
+        the property that its rows are periodic with period q. The elements of the matrix
+        are complex numbers that are calculated using the Ramanujan sum, which is a
         mathematical function that sums over the roots of unity.
 
         Parameters
@@ -1017,19 +790,19 @@ class QOPeriods:
         q : int
             The period of the matrix. This is the number of unique rows in the matrix.
         s : int
-            The shift of the matrix. This is the number of positions to roll the elements 
+            The shift of the matrix. This is the number of positions to roll the elements
             of the matrix to the right.
         repetitions : int, optional
             The number of times to repeat the matrix. Default is 1.
         type : str, optional
-            The type of the output. If "real", the real part of the complex numbers is returned. 
+            The type of the output. If "real", the real part of the complex numbers is returned.
             If "complex", the complex numbers are returned as is. Default is "real".
 
         Returns
         -------
         np.ndarray
-            The Ramanujan periodic matrix. It is a 1-D array of floats if type is "real", 
-            and a 1-D array of complex numbers if type is "complex". The length of the array 
+            The Ramanujan periodic matrix. It is a 1-D array of floats if type is "real",
+            and a 1-D array of complex numbers if type is "complex". The length of the array
             is q * repetitions.
         """
         vec = np.zeros(q, dtype=complex)
@@ -1051,7 +824,13 @@ class QOPeriods:
         else:
             return np.real(vec)
 
-    def compute_reconstruction(self, x:np.ndarray, periods:list, type:str="lstsq", window:np.ndarray=None) -> tuple:
+    def compute_reconstruction(
+        self,
+        x: np.ndarray,
+        periods: list,
+        type: str = "lstsq",
+        window: np.ndarray = None,
+    ) -> Tuple[np.ndarray, Dict]:
         """
         Compute the best representation of the signal using the non-zero periods and subtract that from the original to get the new residual.
 
@@ -1095,7 +874,7 @@ class QOPeriods:
         ##########################
         try:
             output_weights, reconstruction = self.solve_quadratic(
-                x, basis_matricies, window=window, type=type
+                x, basis_matricies, window=window, type=self._quadprog
             )  # get the new reconstruction and do it again
 
             ## set things here since it's also passed to test_function() ##
@@ -1103,7 +882,7 @@ class QOPeriods:
                 "periods": periods,
                 "subspaces": basis_matricies,
                 "weights": output_weights,
-                "basis_dictionary": basis_dictionary
+                "basis_dictionary": basis_dictionary,
                 # norms: defined outside
             }
         except np.linalg.LinAlgError:
@@ -1119,11 +898,11 @@ class QOPeriods:
     ## Equations for orthogonal period finding. Straight from Muresan with slight
     ## optimization tweaks.
     #######################################################
-    def eq_3(self, x, P):
+    def _eq_3(self, x, P):
         """
         Compute the value of Equation 3 from the Muresan paper.
 
-        This equation is used to find the best period of a signal by calculating the 
+        This equation is used to find the best period of a signal by calculating the
         sum of the autocorrelations of the signal at lags that are multiples of the period.
 
         Parameters
@@ -1136,7 +915,7 @@ class QOPeriods:
         Returns
         -------
         float
-            The value of Equation 3 for the given signal and period. It represents the 
+            The value of Equation 3 for the given signal and period. It represents the
             sum of the autocorrelations of the signal at lags that are multiples of the period.
         """
         N = len(x)
@@ -1144,15 +923,15 @@ class QOPeriods:
         second_term = 0
         M = N // P
         for l in range(1, M):
-            second_term += self.auto_corr(x, int(l * P))
+            second_term += self._auto_corr(x, int(l * P))
         second_term *= 2
-        return fac * (self.auto_corr(x, 0) + second_term)
+        return fac * (self._auto_corr(x, 0) + second_term)
 
-    def auto_corr(self, x, k):
+    def _auto_corr(self, x, k):
         """
         Compute the autocorrelation of the signal at a given lag. Note that this necessarily truncates the input signal. :(
 
-        Autocorrelation is a mathematical tool for finding repeating patterns in a signal. 
+        Autocorrelation is a mathematical tool for finding repeating patterns in a signal.
         It is the correlation of the signal with itself at different points in time.
 
         Parameters
@@ -1165,7 +944,7 @@ class QOPeriods:
         Returns
         -------
         float
-            The autocorrelation of the signal at lag k. It represents the degree of similarity 
+            The autocorrelation of the signal at lag k. It represents the degree of similarity
             between the signal and its lagged version.
         """
         N = len(x)
@@ -1178,9 +957,9 @@ class QOPeriods:
         """
         Find the best period of a signal using Equation 3 of the Muresan paper.
 
-        This method first calculates the autocorrelation for each possible period up to max_p. 
-        It then subtracts the power of each factor of each period from the power of that period. 
-        Finally, it returns the period with the maximum power, or the powers for all periods 
+        This method first calculates the autocorrelation for each possible period up to max_p.
+        It then subtracts the power of each factor of each period from the power of that period.
+        Finally, it returns the period with the maximum power, or the powers for all periods
         if return_powers is True.
 
         Parameters
@@ -1197,27 +976,25 @@ class QOPeriods:
         Returns
         -------
         int or np.ndarray
-            If return_powers is False, returns the best period, i.e., the period that maximizes the 
-            value of Equation 3. If return_powers is True, returns the powers for all periods, i.e., 
+            If return_powers is False, returns the best period, i.e., the period that maximizes the
+            value of Equation 3. If return_powers is True, returns the powers for all periods, i.e.,
             the values of Equation 3 for all periods.
         """
         if max_p is None:
             max_p = (
                 len(x) // 2
             )  # max period is half the length of the signal by default
-        Q = np.arange(1, max_p)  # all possible periods
-        pows = np.zeros(Q[-1] + 1)
+        Q = np.arange(1, max_p + 1)  # all possible periods
+        pows = np.zeros(len(Q) + 1)
         for q in Q:
             pows[q] = max(
-                self.eq_3(x, q), 0
+                self._eq_3(x, q), 0
             )  # get the max of the autocorrelation for each q in Q
-            facs = get_factors(q)  # get the factors of q
-            for f in facs:  # for each factor
-                if f != q:  # if it's not the period itself
-                    pows[q] -= pows[f]  # subtract the power of that factor
-        pows[
-            pows < 0
-        ] = 0  # set everything nevative to zero (kinda wonky, should revisit)
+            for f in get_factors(q, remove_n=True):  # for each factor
+                pows[q] -= pows[f]  # subtract the power of that factor
+        pows[pows < 0] = (
+            0  # set everything nevative to zero (kinda wonky, should revisit)
+        )
 
         if normalize:
             pows[1:] = pows[1:] / Q  # normalize by the period
@@ -1225,9 +1002,9 @@ class QOPeriods:
             return pows
         else:
             if np.argmax(pows) > 0:
-                return (
-                    Q[np.argmax(pows)] - 1
-                )  # return the strongest period, subtract one to offset the values in Q
+                return Q[
+                    np.argmax(pows) - 1
+                ]  # return the strongest period, subtract one to offset the values in Q
             else:
                 return 1  # if the max is 0, return 1 instead (same thing)
 
@@ -1308,3 +1085,14 @@ class QOPeriods:
         return locals()
 
     output_bases = property(**output_bases())
+
+    def quadprog():
+        doc = 'Which type of quadratic solver to use. Acceptable values are "solve" and "lstsq".'
+
+        def fget(self):
+            return self._quadprog
+
+        def fset(self, value):
+            self._quadprog = value
+
+        return locals()
