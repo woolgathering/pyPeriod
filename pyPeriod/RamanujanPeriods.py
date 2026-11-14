@@ -73,7 +73,7 @@ class RamanujanPeriods(QOPeriods):
             if self._verbose:
                 print("Processing for period {}".format(p))
             basis = self.Cq_complete(p, len(x))
-            projection = RamanujanPeriods.project(x, basis)
+            projection = self.project(x, basis)
             output = np.sum(projection, 0)
             norms[p] = np.sum(np.power(output, 2))
             if self._verbose:
@@ -121,17 +121,14 @@ class RamanujanPeriods(QOPeriods):
         self._output = output_bases
         return (output_bases, res)
 
-    @staticmethod
-    # @jit(nopython=False, parallel=True)
-    def project(x, basis):
+    def project(self, x, basis):
         proj_complete = np.zeros(basis.shape, dtype=np.float32)
         for i, row in enumerate(basis):
             row = row / np.max(row)
             proj_complete[i] = np.dot(x, row) * row
         return proj_complete
 
-    @staticmethod
-    def Cq(q, s=0, repetitions=1, type="real"):
+    def Cq(self, q, s=0, repetitions=1, type="real"):
         vec = np.zeros(q, dtype=complex)
         k = []
         for i in range(q):

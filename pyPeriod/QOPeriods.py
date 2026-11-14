@@ -146,13 +146,18 @@ class QOPeriods(Periods):
         res = data.copy()  # copy
         output_weights = np.array([])
         basis_matricies = np.empty((0, N))
+        reconstruction = np.zeros(N)
         basis_dictionary = {}
+        
+        def test_function(this, x, y):
+            if this._verbose:
+                print(f"rms(y): {rms(y)}, rms(data): {rms(data)}, thresh: {thresh}")
+            residual = y - x
+            return rms(residual) > (rms(data) * thresh)
 
         # if test_function is set, thresh is overridden
         if "test_function" in kwargs.keys():
             test_function = kwargs["test_function"]
-        else:
-            test_function = lambda self, x, y: rms(y) > (rms(data) * thresh)
 
         ## default to what we'd get if it were a vector of 0's ##
         if np.sum(np.abs(data)) <= 1e-16:
@@ -179,7 +184,7 @@ class QOPeriods(Periods):
             }
 
         for i in range(n_periods):  # loop over the number of periods to find
-            if i == 0 or test_function(
+            if test_function(
                 self, data, reconstruction
             ):  # if the test function returns True (i.e. continue)
                 if self._verbose:
@@ -214,6 +219,7 @@ class QOPeriods(Periods):
                             best_base, best_p
                         )  # get the norm of the orthogonalized projection
                     else:
+                        print("BEST PERIOD ORTHOGONAL")
                         powers = self.get_best_period_orthogonal(
                             res, max_length, normalize=True, return_powers=True
                         )

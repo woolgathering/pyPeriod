@@ -207,10 +207,24 @@ def saw_func(x, fund=10):
     x = x % fund
     return (x * inc) - 1
 
+def saw_reversed_func(x, fund):
+    inc = 2 / fund
+    x = fund - (x % fund)
+    return (x * inc) - 1
 
 def square_func(i, fund):
     i = (i % fund) - (fund / 2)
     return np.sign(i)
+
+def triangle_func(x, fund=10):
+    x = x % fund
+    return 1 - np.abs(2 * x / fund - 1) * 2
+
+
+def random_func(x, fund=10):
+    y = np.random.rand((fund)) * 2 - 1
+    y = normalize(remove_dc(y))
+    return y[x % fund]
 
 
 def noise(N, level=1.0):
